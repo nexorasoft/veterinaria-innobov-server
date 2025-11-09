@@ -1,0 +1,17 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Clínica Veterinaria Software",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "veterinary",
+    "clinic",
+    "software"
+  ],
+  "author": "Anthony Andrango",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0"
+}

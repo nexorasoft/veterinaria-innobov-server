@@ -1,0 +1,574 @@
+-- ============================================
+-- LIMPIEZA DE TABLAS EXISTENTES
+-- ============================================
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS cash_movements;
+DROP TABLE IF EXISTS accounts_payable;
+DROP TABLE IF EXISTS accounts_receivable;
+DROP TABLE IF EXISTS vaccinations;
+DROP TABLE IF EXISTS consultation_medicines;
+DROP TABLE IF EXISTS consultations;
+DROP TABLE IF EXISTS appointments;
+DROP TABLE IF EXISTS sale_details;
+DROP TABLE IF EXISTS sales;
+DROP TABLE IF EXISTS purchase_details;
+DROP TABLE IF EXISTS purchases;
+DROP TABLE IF EXISTS medicine_symptom;
+DROP TABLE IF EXISTS symptoms;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS pet_weight_history;
+DROP TABLE IF EXISTS pets;
+DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS species;
+DROP TABLE IF EXISTS system_settings;
+
+-- ============================================
+-- CONFIGURACIÓN DEL SISTEMA
+-- ============================================
+CREATE TABLE system_settings (
+    id TEXT PRIMARY KEY DEFAULT 'main',
+    clinic_name TEXT NOT NULL DEFAULT 'Clínica Veterinaria',
+    ruc TEXT,
+    address TEXT,
+    phone TEXT,
+    email TEXT,
+    logo TEXT,
+    
+    -- Facturación Electrónica SRI
+    sri_environment TEXT CHECK(sri_environment IN ('PRUEBAS', 'PRODUCCION')) DEFAULT 'PRUEBAS',
+    sri_establishment TEXT DEFAULT '001',
+    sri_emission_point TEXT DEFAULT '001',
+    sri_next_sequential INTEGER DEFAULT 1,
+    
+    -- Configuraciones adicionales
+    tax_percentage REAL DEFAULT 15.0,
+    currency TEXT DEFAULT 'USD',
+    timezone TEXT DEFAULT 'America/Guayaquil',
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+-- Insertar configuración por defecto
+INSERT INTO system_settings (id) VALUES ('main');
+
+-- ============================================
+-- USUARIOS Y ROLES
+-- ============================================
+CREATE TABLE roles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    permissions TEXT, -- JSON con permisos
+    active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    role_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    phone TEXT,
+    password TEXT NOT NULL,
+    profile_image TEXT,
+    
+    -- Seguridad
+    status BOOLEAN DEFAULT 1,
+    last_login DATETIME,
+    failed_login_attempts INTEGER DEFAULT 0,
+    password_changed_at DATETIME,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+);
+
+-- Roles por defecto
+INSERT INTO roles (id, name, description) VALUES 
+    ('admin', 'Administrador', 'Acceso completo al sistema'),
+    ('vet', 'Veterinario', 'Gestión clínica y consultas'),
+    ('cashier', 'Cajero', 'Ventas y facturación'),
+    ('assistant', 'Asistente', 'Apoyo administrativo');
+
+-- ============================================
+-- ESPECIES (Para estandarizar)
+-- ============================================
+CREATE TABLE species (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    typical_lifespan_years INTEGER,
+    common_diseases TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+-- Especies comunes
+INSERT INTO species (id, name, typical_lifespan_years) VALUES
+    ('dog', 'Perro', 13),
+    ('cat', 'Gato', 15),
+    ('bird', 'Ave', 10),
+    ('rabbit', 'Conejo', 9),
+    ('hamster', 'Hámster', 3),
+    ('turtle', 'Tortuga', 30),
+    ('fish', 'Pez', 5),
+    ('other', 'Otro', NULL);
+
+-- ============================================
+-- CLIENTES Y MASCOTAS
+-- ============================================
+CREATE TABLE clients (
+    id TEXT PRIMARY KEY,
+    dni TEXT UNIQUE,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    
+    -- Adicionales
+    emergency_contact TEXT,
+    emergency_phone TEXT,
+    notes TEXT,
+    active BOOLEAN DEFAULT 1,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+CREATE TABLE pets (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    species_id TEXT NOT NULL,
+    breed TEXT,
+    sex TEXT CHECK(sex IN ('Macho', 'Hembra')),
+    birth_date DATE,
+    color TEXT,
+    weight REAL,
+    microchip TEXT UNIQUE,
+    
+    -- Información adicional
+    sterilized BOOLEAN DEFAULT 0,
+    allergies TEXT,
+    special_conditions TEXT,
+    photo TEXT,
+    active BOOLEAN DEFAULT 1,
+    deceased BOOLEAN DEFAULT 0,
+    deceased_date DATE,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+    FOREIGN KEY (species_id) REFERENCES species(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE pet_weight_history (
+    id TEXT PRIMARY KEY,
+    pet_id TEXT NOT NULL,
+    weight REAL NOT NULL,
+    recorded_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    recorded_by TEXT,
+    notes TEXT,
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- PROVEEDORES
+-- ============================================
+CREATE TABLE suppliers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    ruc TEXT UNIQUE,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    contact_person TEXT,
+    payment_terms TEXT,
+    active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+-- ============================================
+-- CATEGORÍAS Y PRODUCTOS
+-- ============================================
+CREATE TABLE categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    parent_category_id TEXT,
+    active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (parent_category_id) REFERENCES categories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE products (
+    id TEXT PRIMARY KEY,
+    category_id TEXT NOT NULL,
+    supplier_id TEXT,
+    code TEXT UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    
+    -- Precios
+    purchase_price REAL NOT NULL DEFAULT 0,
+    sale_price REAL NOT NULL,
+    wholesale_price REAL,
+    
+    -- Inventario
+    stock INTEGER DEFAULT 0,
+    min_stock INTEGER DEFAULT 1,
+    max_stock INTEGER,
+    unit TEXT DEFAULT 'UND', -- UND, KG, ML, etc.
+    
+    -- Medicinas
+    is_medicine BOOLEAN DEFAULT 0,
+    requires_prescription BOOLEAN DEFAULT 0,
+    active_ingredient TEXT,
+    concentration TEXT,
+    expiration_date DATE,
+    batch_number TEXT,
+    
+    -- Control
+    active BOOLEAN DEFAULT 1,
+    taxable BOOLEAN DEFAULT 1,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- SERVICIOS VETERINARIOS
+-- ============================================
+CREATE TABLE services (
+    id TEXT PRIMARY KEY,
+    code TEXT UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    price REAL NOT NULL,
+    duration_minutes INTEGER DEFAULT 30,
+    category TEXT CHECK(category IN ('CONSULTA', 'CIRUGIA', 'ESTETICA', 'DIAGNOSTICO', 'HOSPITALIZACION', 'OTRO')),
+    requires_appointment BOOLEAN DEFAULT 1,
+    active BOOLEAN DEFAULT 1,
+    taxable BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+-- Servicios comunes
+INSERT INTO services (id, code, name, price, category, duration_minutes) VALUES
+    ('srv001', 'CONS-GEN', 'Consulta General', 15.00, 'CONSULTA', 30),
+    ('srv002', 'CONS-ESP', 'Consulta Especializada', 25.00, 'CONSULTA', 45),
+    ('srv003', 'VAC-STD', 'Vacunación', 10.00, 'CONSULTA', 15),
+    ('srv004', 'CIR-CAST', 'Castración', 80.00, 'CIRUGIA', 120),
+    ('srv005', 'BANO-STD', 'Baño y Peluquería', 20.00, 'ESTETICA', 60),
+    ('srv006', 'RX-STD', 'Radiografía', 30.00, 'DIAGNOSTICO', 20);
+
+-- ============================================
+-- BÚSQUEDA INTELIGENTE (SÍNTOMAS ↔ MEDICINAS)
+-- ============================================
+CREATE TABLE symptoms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    severity TEXT CHECK(severity IN ('LEVE', 'MODERADO', 'GRAVE')),
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+CREATE TABLE medicine_symptom (
+    medicine_id TEXT NOT NULL,
+    symptom_id TEXT NOT NULL,
+    effectiveness TEXT CHECK(effectiveness IN ('ALTA', 'MEDIA', 'BAJA')) DEFAULT 'MEDIA',
+    notes TEXT,
+    PRIMARY KEY (medicine_id, symptom_id),
+    FOREIGN KEY (medicine_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (symptom_id) REFERENCES symptoms(id) ON DELETE CASCADE
+);
+
+-- ============================================
+-- COMPRAS E INVENTARIO
+-- ============================================
+CREATE TABLE purchases (
+    id TEXT PRIMARY KEY,
+    supplier_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    
+    -- Montos
+    subtotal REAL NOT NULL DEFAULT 0,
+    tax REAL DEFAULT 0,
+    discount REAL DEFAULT 0,
+    total REAL NOT NULL,
+    
+    payment_method TEXT CHECK(payment_method IN ('EFECTIVO', 'TRANSFERENCIA', 'CREDITO', 'CHEQUE')) DEFAULT 'EFECTIVO',
+    status TEXT CHECK(status IN ('BORRADOR', 'PAGADA', 'PENDIENTE', 'ANULADA')) DEFAULT 'PENDIENTE',
+    
+    invoice_number TEXT,
+    due_date DATE,
+    notes TEXT,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE purchase_details (
+    id TEXT PRIMARY KEY,
+    purchase_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL CHECK(quantity > 0),
+    price REAL NOT NULL,
+    discount REAL DEFAULT 0,
+    subtotal REAL NOT NULL,
+    expiration_date DATE,
+    batch_number TEXT,
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+-- ============================================
+-- VENTAS / FACTURACIÓN ELECTRÓNICA SRI
+-- ============================================
+CREATE TABLE sales (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    
+    -- Montos
+    subtotal REAL NOT NULL DEFAULT 0,
+    tax REAL DEFAULT 0,
+    discount REAL DEFAULT 0,
+    total REAL NOT NULL,
+    
+    payment_method TEXT CHECK(payment_method IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'CREDITO', 'OTRO')) DEFAULT 'EFECTIVO',
+    status TEXT CHECK(status IN ('BORRADOR', 'EMITIDA', 'ANULADA')) DEFAULT 'EMITIDA',
+    
+    -- Facturación Electrónica SRI
+    document_type TEXT CHECK(document_type IN ('01', '04', '05', '07')) DEFAULT '01', -- 01=Factura, 04=Nota Crédito, 05=Nota Débito, 07=Retención
+    establishment TEXT, -- 001
+    emission_point TEXT, -- 001
+    sequential TEXT, -- 000000001
+    access_key TEXT UNIQUE, -- Clave de acceso (49 dígitos)
+    authorization_number TEXT,
+    authorization_date DATETIME,
+    sri_status TEXT CHECK(sri_status IN ('PENDIENTE', 'AUTORIZADO', 'RECHAZADO', 'NO_AUTORIZADO')) DEFAULT 'PENDIENTE',
+    sri_response TEXT, -- Mensaje del SRI
+    xml_signed TEXT, -- XML firmado
+    
+    notes TEXT,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE sale_details (
+    id TEXT PRIMARY KEY,
+    sale_id TEXT NOT NULL,
+    item_type TEXT CHECK(item_type IN ('PRODUCTO', 'SERVICIO')) DEFAULT 'PRODUCTO',
+    product_id TEXT,
+    service_id TEXT,
+    description TEXT,
+    quantity INTEGER NOT NULL CHECK(quantity > 0),
+    price REAL NOT NULL,
+    discount REAL DEFAULT 0,
+    subtotal REAL NOT NULL,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
+    CHECK ((item_type = 'PRODUCTO' AND product_id IS NOT NULL AND service_id IS NULL) 
+        OR (item_type = 'SERVICIO' AND service_id IS NOT NULL AND product_id IS NULL))
+);
+
+-- ============================================
+-- CLÍNICA (CITAS Y CONSULTAS)
+-- ============================================
+CREATE TABLE appointments (
+    id TEXT PRIMARY KEY,
+    pet_id TEXT NOT NULL,
+    user_id TEXT NOT NULL, -- veterinario asignado
+    service_id TEXT,
+    
+    date DATETIME NOT NULL,
+    duration_minutes INTEGER DEFAULT 30,
+    reason TEXT,
+    
+    status TEXT CHECK(status IN ('PENDIENTE', 'CONFIRMADA', 'EN_CURSO', 'COMPLETADA', 'CANCELADA', 'NO_ASISTIO')) DEFAULT 'PENDIENTE',
+    
+    reminder_sent BOOLEAN DEFAULT 0,
+    reminder_sent_at DATETIME,
+    
+    notes TEXT,
+    cancellation_reason TEXT,
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL
+);
+
+CREATE TABLE consultations (
+    id TEXT PRIMARY KEY,
+    pet_id TEXT NOT NULL,
+    user_id TEXT NOT NULL, -- veterinario
+    appointment_id TEXT,
+    
+    -- Evaluación clínica
+    weight REAL,
+    temperature REAL,
+    heart_rate INTEGER,
+    respiratory_rate INTEGER,
+    
+    -- Diagnóstico
+    symptoms TEXT,
+    diagnosis TEXT,
+    treatment TEXT,
+    observations TEXT,
+    
+    -- Seguimiento
+    next_visit DATE,
+    next_visit_reason TEXT,
+    
+    -- Archivos adjuntos
+    attachments TEXT, -- JSON con rutas de archivos
+    
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE SET NULL
+);
+
+-- TABLA NUEVA: Medicinas recetadas en consultas
+CREATE TABLE consultation_medicines (
+    id TEXT PRIMARY KEY,
+    consultation_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    dosage TEXT NOT NULL, -- "5mg cada 8 horas"
+    duration TEXT, -- "7 días"
+    frequency TEXT, -- "Cada 8 horas"
+    quantity_prescribed REAL,
+    administration_route TEXT, -- "Oral", "Tópico", "Inyectable"
+    instructions TEXT,
+    FOREIGN KEY (consultation_id) REFERENCES consultations(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE vaccinations (
+    id TEXT PRIMARY KEY,
+    pet_id TEXT NOT NULL,
+    consultation_id TEXT,
+    vaccine_name TEXT NOT NULL,
+    batch_number TEXT,
+    manufacturer TEXT,
+    date_given DATE NOT NULL,
+    next_due DATE,
+    applied_by TEXT,
+    notes TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE RESTRICT,
+    FOREIGN KEY (consultation_id) REFERENCES consultations(id) ON DELETE SET NULL,
+    FOREIGN KEY (applied_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- FINANZAS
+-- ============================================
+CREATE TABLE accounts_receivable (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    sale_id TEXT,
+    amount REAL NOT NULL,
+    amount_paid REAL DEFAULT 0,
+    balance REAL NOT NULL,
+    due_date DATE,
+    status TEXT CHECK(status IN ('PENDIENTE', 'PAGADO_PARCIAL', 'PAGADO', 'VENCIDO')) DEFAULT 'PENDIENTE',
+    notes TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL
+);
+
+CREATE TABLE accounts_payable (
+    id TEXT PRIMARY KEY,
+    supplier_id TEXT NOT NULL,
+    purchase_id TEXT,
+    amount REAL NOT NULL,
+    amount_paid REAL DEFAULT 0,
+    balance REAL NOT NULL,
+    due_date DATE,
+    status TEXT CHECK(status IN ('PENDIENTE', 'PAGADO_PARCIAL', 'PAGADO', 'VENCIDO')) DEFAULT 'PENDIENTE',
+    notes TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT,
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
+);
+
+CREATE TABLE cash_movements (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT CHECK(type IN ('INGRESO', 'EGRESO')) NOT NULL,
+    category TEXT CHECK(category IN ('VENTA', 'COMPRA', 'PAGO_SERVICIO', 'PAGO_SALARIO', 'GASTO_OPERATIVO', 'OTRO')),
+    concept TEXT NOT NULL,
+    amount REAL NOT NULL,
+    
+    -- Referencias opcionales
+    sale_id TEXT,
+    purchase_id TEXT,
+    reference_number TEXT,
+    
+    notes TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL,
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
+);
+
+-- ============================================
+-- NOTIFICACIONES Y AUDITORÍA
+-- ============================================
+CREATE TABLE notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT CHECK(type IN ('SISTEMA', 'CITA', 'VACUNA', 'PAGO', 'STOCK', 'RECORDATORIO')),
+    priority TEXT CHECK(priority IN ('BAJA', 'MEDIA', 'ALTA', 'URGENTE')) DEFAULT 'MEDIA',
+    
+    -- Referencias opcionales
+    related_entity_type TEXT, -- 'appointment', 'sale', 'product', etc.
+    related_entity_id TEXT,
+    
+    seen BOOLEAN DEFAULT 0,
+    seen_at DATETIME,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE audit_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    action TEXT NOT NULL, -- CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+    module TEXT NOT NULL, -- sales, products, clients, etc.
+    entity_type TEXT,
+    entity_id TEXT,
+    old_values TEXT, -- JSON
+    new_values TEXT, -- JSON
+    ip_address TEXT,
+    user_agent TEXT,
+    details TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);

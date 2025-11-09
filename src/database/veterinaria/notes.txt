@@ -1,0 +1,52 @@
+-- ============================================
+-- NOTAS IMPORTANTES PARA EL DESARROLLADOR
+-- ============================================
+
+/*
+MEJORAS IMPLEMENTADAS:
+✅ 1. Eliminada redundancia de medicinas en consultas (nueva tabla consultation_medicines)
+✅ 2. Agregada tabla de servicios veterinarios
+✅ 3. Completada información para facturación electrónica SRI
+✅ 4. Agregado historial de peso de mascotas
+✅ 5. Mejorados movimientos de caja con referencias
+✅ 6. Ampliada información de citas (motivo, duración, recordatorios)
+✅ 7. Creados 15 índices para optimizar consultas
+✅ 8. Implementados 15 triggers automáticos para lógica de negocio
+✅ 9. Agregadas 10 vistas útiles para reportes
+✅ 10. Mejorada estructura de cuentas por cobrar/pagar
+✅ 11. Agregada tabla de especies para estandarización
+✅ 12. Implementado soft delete (campo active)
+✅ 13. Mejorada auditoría con más detalles
+✅ 14. Agregados campos de seguridad en usuarios
+
+PRÓXIMOS PASOS RECOMENDADOS:
+1. Implementar encriptación de contraseñas (bcrypt)
+2. Crear sistema de respaldos automáticos
+3. Implementar firma digital para facturación electrónica
+4. Agregar soporte para imágenes (rayos X, fotos de mascotas)
+5. Implementar sistema de roles y permisos granular
+6. Agregar reportes PDF automatizados
+7. Implementar notificaciones por email/SMS
+8. Crear dashboard con métricas en tiempo real
+
+CONSIDERACIONES DE SEGURIDAD:
+- NUNCA guardar contraseñas en texto plano
+- Validar TODOS los inputs antes de insertar
+- Implementar límite de intentos de login
+- Registrar TODAS las acciones críticas en audit_logs
+- Hacer backups diarios de la base de datos
+- Validar permisos antes de cada operación
+
+FACTURACIÓN ELECTRÓNICA SRI:
+- La clave de acceso tiene 49 dígitos
+- Formato: DDMMYYYYTTCCCCCCCRRRREEEEPPPSSSSSSSSSC
+- Implementar generación según especificación del SRI
+- Validar con módulo 11
+- Firmar XML con certificado digital
+
+OPTIMIZACIÓN:
+- Los índices mejoran velocidad de consultas complejas
+- Los triggers automatizan lógica de negocio
+- Las vistas simplifican reportes frecuentes
+- Considerar particionamiento si la BD crece mucho
+*/
