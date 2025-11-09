@@ -1,5 +1,10 @@
 -- ============================================
--- TRIGGERS AUTOMÁTICOS
+-- SISTEMA VETERINARIO - TRIGGERS
+-- Triggers automáticos para lógica de negocio
+-- ============================================
+
+-- ============================================
+-- TRIGGERS DE INVENTARIO Y STOCK
 -- ============================================
 
 -- TRIGGER 1: Actualizar stock al registrar venta
@@ -60,6 +65,28 @@ BEGIN
     WHERE id = NEW.product_id;
 END;
 
+-- TRIGGER 13: Notificar productos próximos a vencer
+CREATE TRIGGER trg_notify_expiring_products
+AFTER INSERT ON products
+WHEN NEW.expiration_date IS NOT NULL 
+AND julianday(NEW.expiration_date) - julianday('now') <= 30
+BEGIN
+    INSERT INTO notifications (id, title, message, type, priority, related_entity_type, related_entity_id)
+    VALUES (
+        'notif_' || hex(randomblob(16)),
+        'Producto Próximo a Vencer',
+        'El producto "' || NEW.name || '" vence el ' || NEW.expiration_date,
+        'STOCK',
+        'ALTA',
+        'product',
+        NEW.id
+    );
+END;
+
+-- ============================================
+-- TRIGGERS DE MASCOTAS
+-- ============================================
+
 -- TRIGGER 4: Registrar peso en historial al actualizar mascota
 CREATE TRIGGER trg_record_pet_weight
 AFTER UPDATE ON pets
@@ -74,7 +101,32 @@ BEGIN
     );
 END;
 
--- TRIGGER 5: Actualizar timestamp de actualización
+-- TRIGGER 14: Registrar peso automáticamente en consulta
+CREATE TRIGGER trg_record_consultation_weight
+AFTER INSERT ON consultations
+WHEN NEW.weight IS NOT NULL
+BEGIN
+    INSERT INTO pet_weight_history (id, pet_id, weight, recorded_by, notes)
+    VALUES (
+        'weight_' || hex(randomblob(16)),
+        NEW.pet_id,
+        NEW.weight,
+        NEW.user_id,
+        'Registrado en consulta'
+    );
+    
+    -- Actualizar peso actual de la mascota
+    UPDATE pets
+    SET weight = NEW.weight,
+        updated_at = datetime('now', '-5 hours')
+    WHERE id = NEW.pet_id;
+END;
+
+-- ============================================
+-- TRIGGERS DE TIMESTAMPS
+-- ============================================
+
+-- TRIGGER 5: Actualizar timestamp de clientes
 CREATE TRIGGER trg_update_clients_timestamp
 AFTER UPDATE ON clients
 BEGIN
@@ -111,6 +163,10 @@ BEGIN
     UPDATE purchases SET updated_at = datetime('now', '-5 hours') WHERE id = NEW.id;
 END;
 
+-- ============================================
+-- TRIGGERS DE CITAS Y CONSULTAS
+-- ============================================
+
 -- TRIGGER 6: Notificaciones de citas próximas
 CREATE TRIGGER trg_notify_upcoming_appointment
 AFTER INSERT ON appointments
@@ -128,6 +184,21 @@ BEGIN
         NEW.id
     );
 END;
+
+-- TRIGGER 15: Actualizar estado de cita al crear consulta
+CREATE TRIGGER trg_complete_appointment_on_consultation
+AFTER INSERT ON consultations
+WHEN NEW.appointment_id IS NOT NULL
+BEGIN
+    UPDATE appointments
+    SET status = 'COMPLETADA',
+        updated_at = datetime('now', '-5 hours')
+    WHERE id = NEW.appointment_id;
+END;
+
+-- ============================================
+-- TRIGGERS DE AUDITORÍA
+-- ============================================
 
 -- TRIGGER 7: Auditoría de ventas
 CREATE TRIGGER trg_audit_sales_insert
@@ -161,6 +232,10 @@ BEGIN
         json_object('status', NEW.status, 'total', NEW.total)
     );
 END;
+
+-- ============================================
+-- TRIGGERS DE FINANZAS
+-- ============================================
 
 -- TRIGGER 9: Crear movimiento de caja automático al confirmar venta
 CREATE TRIGGER trg_create_cash_movement_on_sale
@@ -218,52 +293,87 @@ BEGIN
     WHERE id = NEW.id;
 END;
 
--- TRIGGER 13: Notificar productos próximos a vencer
-CREATE TRIGGER trg_notify_expiring_products
-AFTER INSERT ON products
-WHEN NEW.expiration_date IS NOT NULL 
-AND julianday(NEW.expiration_date) - julianday('now') <= 30
-BEGIN
-    INSERT INTO notifications (id, title, message, type, priority, related_entity_type, related_entity_id)
-    VALUES (
-        'notif_' || hex(randomblob(16)),
-        'Producto Próximo a Vencer',
-        'El producto "' || NEW.name || '" vence el ' || NEW.expiration_date,
-        'STOCK',
-        'ALTA',
-        'product',
-        NEW.id
-    );
-END;
+-- ============================================
+-- TRIGGERS DE SESIONES Y SEGURIDAD
+-- ============================================
 
--- TRIGGER 14: Registrar peso automáticamente en consulta
-CREATE TRIGGER trg_record_consultation_weight
-AFTER INSERT ON consultations
-WHEN NEW.weight IS NOT NULL
+-- TRIGGER 16: Registrar intento de login exitoso
+CREATE TRIGGER trg_log_successful_login
+AFTER UPDATE ON users
+WHEN NEW.last_login != OLD.last_login AND NEW.last_login IS NOT NULL
 BEGIN
-    INSERT INTO pet_weight_history (id, pet_id, weight, recorded_by, notes)
+    INSERT INTO login_attempts (id, email, ip_address, success, created_at)
     VALUES (
-        'weight_' || hex(randomblob(16)),
-        NEW.pet_id,
-        NEW.weight,
-        NEW.user_id,
-        'Registrado en consulta'
+        'login_' || hex(randomblob(16)),
+        NEW.email,
+        'SYSTEM',
+        1,
+        datetime('now', '-5 hours')
     );
     
-    -- Actualizar peso actual de la mascota
-    UPDATE pets
-    SET weight = NEW.weight,
-        updated_at = datetime('now', '-5 hours')
-    WHERE id = NEW.pet_id;
+    -- Resetear intentos fallidos
+    UPDATE users
+    SET failed_login_attempts = 0,
+        account_locked_until = NULL
+    WHERE id = NEW.id;
 END;
 
--- TRIGGER 15: Actualizar estado de cita al crear consulta
-CREATE TRIGGER trg_complete_appointment_on_consultation
-AFTER INSERT ON consultations
-WHEN NEW.appointment_id IS NOT NULL
+-- TRIGGER 17: Limpiar sesiones expiradas automáticamente
+CREATE TRIGGER trg_cleanup_expired_sessions
+AFTER INSERT ON user_sessions
 BEGIN
-    UPDATE appointments
-    SET status = 'COMPLETADA',
-        updated_at = datetime('now', '-5 hours')
-    WHERE id = NEW.appointment_id;
+    UPDATE user_sessions
+    SET is_active = 0,
+        closed_at = datetime('now', '-5 hours')
+    WHERE expires_at < datetime('now', '-5 hours')
+    AND is_active = 1;
+END;
+
+-- TRIGGER 18: Registrar cierre de sesión en auditoría
+CREATE TRIGGER trg_audit_session_close
+AFTER UPDATE ON user_sessions
+WHEN NEW.is_active = 0 AND OLD.is_active = 1
+BEGIN
+    INSERT INTO audit_logs (id, user_id, action, module, entity_type, entity_id, details)
+    VALUES (
+        'audit_' || hex(randomblob(16)),
+        NEW.user_id,
+        'LOGOUT',
+        'auth',
+        'session',
+        NEW.id,
+        json_object('session_duration', (julianday(NEW.closed_at) - julianday(NEW.created_at)) * 24 * 60)
+    );
+END;
+
+-- TRIGGER 19: Notificar nuevo inicio de sesión desde dispositivo desconocido
+CREATE TRIGGER trg_notify_new_device_login
+AFTER INSERT ON user_sessions
+WHEN NOT EXISTS (
+    SELECT 1 FROM trusted_devices 
+    WHERE user_id = NEW.user_id 
+    AND device_fingerprint = NEW.device_info
+)
+BEGIN
+    INSERT INTO notifications (id, user_id, title, message, type, priority)
+    VALUES (
+        'notif_' || hex(randomblob(16)),
+        NEW.user_id,
+        'Nuevo inicio de sesión',
+        'Se detectó un inicio de sesión desde un dispositivo nuevo. IP: ' || COALESCE(NEW.ip_address, 'Desconocida'),
+        'SISTEMA',
+        'ALTA'
+    );
+END;
+
+-- TRIGGER 20: Actualizar última actividad de sesión
+CREATE TRIGGER trg_update_session_activity
+AFTER INSERT ON audit_logs
+WHEN NEW.user_id IS NOT NULL
+BEGIN
+    UPDATE user_sessions
+    SET last_activity = datetime('now', '-5 hours')
+    WHERE user_id = NEW.user_id
+    AND is_active = 1
+    AND expires_at > datetime('now', '-5 hours');
 END;
