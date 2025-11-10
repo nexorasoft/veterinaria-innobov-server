@@ -46,31 +46,7 @@ export const sAuth = {
 
             logger.info('Starting user registration process', { email: normalizedEmail });
 
-            const [adminExists, existingUserByEmail] = await Promise.all([
-                mAuth.checkAdminExists(),
-                mAuth.findByEmail(normalizedEmail)
-            ]);
-
-            if (adminExists === null) {
-                logger.error('Failed to verify if admin exists');
-                return {
-                    success: false,
-                    code: 500,
-                    message: 'Internal server error while checking admin existence',
-                    data: null
-                };
-            }
-
-            if (adminExists === true) {
-                logger.warn('Registration failed: Admin user already exists');
-                return {
-                    success: false,
-                    code: 409,
-                    message: 'Admin user already exists',
-                    data: null
-                };
-            }
-
+            const existingUserByEmail = await mAuth.findByEmail(normalizedEmail);
             if (existingUserByEmail) {
                 logger.warn('Registration failed: Email already in use', { email: normalizedEmail });
                 return {
@@ -78,6 +54,30 @@ export const sAuth = {
                     code: 409,
                     message: 'Email already in use',
                     data: null
+                }
+            }
+
+            if (userData.role_id === 'admin') {
+                const adminExists = await mAuth.checkAdminExists();
+
+                if (adminExists === null) {
+                    logger.error('Failed to verify if admin exists');
+                    return {
+                        success: false,
+                        code: 500,
+                        message: 'Internal server error while checking admin existence',
+                        data: null
+                    };
+                }
+
+                if (adminExists === true) {
+                    logger.warn('Registration failed: Admin user already exists');
+                    return {
+                        success: false,
+                        code: 409,
+                        message: 'Admin user already exists',
+                        data: null
+                    };
                 }
             }
 
@@ -191,8 +191,10 @@ export const sAuth = {
 
             logger.info('User logged in successfully', { userId: user.id, email: normalizedEmail });
 
-            const token = generateToken({ id: user.id, email: user.email, role: user.role_name }, '7d');
-            const expiresAt = new Date(Date.now() + 604800000); // 7 días
+            const token = generateToken({ id: user.id }, '7d');
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 días
+            const expiresAtMinus5 = new Date(expiresAt.getTime() - 5 * 60 * 60 * 1000); // -5 horas
+            const formattedExpiresAt = expiresAtMinus5.toISOString().slice(0, 19).replace('T', ' ');
 
             await Promise.all([
                 mAuth.resetFailedLoginAttempts(user.id),
@@ -205,14 +207,14 @@ export const sAuth = {
                     failure_reason: null
                 }),
                 mAuth.registerLastLogin(user.id),
-                mAuth.createSession({
+                mAuth.createOrUpdateSession({
                     id: uuidv4(),
                     user_id: user.id,
                     token,
                     device_info: user_agent,
                     ip_address,
                     user_agent,
-                    expires_at: expiresAt
+                    expires_at: formattedExpiresAt
                 })
             ]).catch(err => {
                 logger.error('Error in post-login operations', { userId: user.id, error: err });
@@ -236,6 +238,21 @@ export const sAuth = {
                 success: false,
                 code: 500,
                 message: 'Internal server error during login',
+                data: null
+            };
+        }
+    },
+
+    async logout(token) {
+        try {
+            const result = await mAuth.logout(token);
+            return result;
+        } catch (error) {
+            logger.error('Error during user logout', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error during logout',
                 data: null
             };
         }

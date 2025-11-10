@@ -4,3 +4,15 @@ import { JWT_SECRET } from '../config/env.js';
 export function generateToken(payload, expiresIn = '1h') {
     return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
+
+export const verifyToken = (token) => {
+    if (!JWT_SECRET) {
+        throw new Error('JWT_SECRET is not configured');
+    }
+
+    try {
+        return jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+        throw new Error('Invalid or expired token');
+    }
+};
