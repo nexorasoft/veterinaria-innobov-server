@@ -103,7 +103,6 @@ export const mAuth = {
                     JOIN roles r ON u.role_id = r.id
                     WHERE r.id = 'admin'
                 ) AS has_admin
-
             `;
 
             const result = await turso.execute(query);
@@ -115,13 +114,18 @@ export const mAuth = {
         }
     },
 
-    async createSession(sessionData) {
+    async createOrUpdateSession(sessionData) {
         try {
+            await turso.execute({
+                sql: 'DELETE FROM user_sessions WHERE user_id = ?',
+                args: [sessionData.user_id]
+            });
+
             const query = `
                 INSERT INTO user_sessions (
                     id, user_id, token, device_info, 
                     ip_address, user_agent, expires_at
-                ) VALUES ( ?, ?, ?, ?, ?, ?, ? )
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
             `;
 
             const result = await turso.execute({
@@ -136,9 +140,12 @@ export const mAuth = {
                     sessionData.expires_at,
                 ]
             });
-            
+
             if (result.rowsAffected > 0) {
-                logger.info('Session created successfully', { sessionId: sessionData.id, userId: sessionData.user_id });
+                logger.info('Session created successfully', {
+                    sessionId: sessionData.id,
+                    userId: sessionData.user_id
+                });
                 return true;
             }
             return false;
@@ -277,5 +284,104 @@ export const mAuth = {
             logger.error('Error registering last login', error);
             return false;
         }
-    }
+    },
+
+    async verifySessionToken(token) {
+        try {
+            const query = `
+                SELECT 
+                    s.*,
+                    u.id as user_id,
+                    u.name,
+                    u.email,
+                    u.status,
+                    u.role_id,
+                    r.name as role_name
+                FROM user_sessions s
+                JOIN users u ON s.user_id = u.id
+                JOIN roles r ON u.role_id = r.id
+                WHERE s.token = ? 
+                AND s.is_active = 1 
+                AND s.expires_at > datetime('now', '-5 hours')
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [token]
+            });
+
+            if (result.rows.length === 0) {
+                return null;
+            }
+
+            return result.rows[0];
+        } catch (error) {
+            logger.error('Error verifying session token', error);
+            return null;
+        }
+    },
+
+    async updateLastActivity(token) {
+        try {
+            const query = `
+                UPDATE user_sessions
+                SET last_activity = datetime('now', '-5 hours')
+                WHERE token = ?
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [token]
+            });
+
+            return result.rowsAffected > 0;
+        } catch (error) {
+            logger.error('Error updating last activity', error);
+            return false;
+        }
+    },
+
+    async logout(token) {
+        try {
+            const query = `
+                UPDATE user_sessions
+                SET
+                    token = NULL, is_active = 0, 
+                    closed_at = datetime('now', '-5 hours')
+                WHERE token = ?
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [token]
+            });
+
+            if (result.rowsAffected === 0) {
+                logger.error('Failed to logout: No rows affected', { token });
+                return {
+                    success: false,
+                    code: 500,
+                    message: 'Failed to logout',
+                    data: null
+                };
+            }
+
+            logger.info('User logged out successfully', { token });
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Logout successful',
+                data: null
+            };
+        } catch (error) {
+            logger.error('Error logging out', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while logging out',
+                data: null
+            };
+        }
+    },
 };

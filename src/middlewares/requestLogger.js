@@ -3,7 +3,6 @@ import { logger } from '../utils/logger.js';
 export const requestLogger = (req, res, next) => {
     const start = Date.now();
 
-    // Captura cuando la respuesta finaliza
     res.on('finish', () => {
         const duration = Date.now() - start;
         const logData = {

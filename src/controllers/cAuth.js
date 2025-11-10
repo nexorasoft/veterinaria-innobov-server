@@ -45,5 +45,33 @@ export const cAuth = {
                 data: null
             });
         }
-    }
+    },
+
+    async logout(req, res) {
+        try {
+            const authHeader = req.headers['authorization'];
+            const token = authHeader && authHeader.split(' ')[1];
+
+            if (!token) {
+                return res.status(401).json({
+                    success: false,
+                    code: 401,
+                    message: 'Token not provided',
+                    data: null
+                });
+            }
+
+            const result = await sAuth.logout(token);
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in logout controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
 }
