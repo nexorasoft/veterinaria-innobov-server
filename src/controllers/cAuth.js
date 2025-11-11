@@ -37,10 +37,10 @@ export const cAuth = {
 
             if (result.success && result.data?.token) {
                 res.cookie('auth_token', result.data.token, {
-                    httpOnly: true,     
+                    httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
-                    signed: true,        
-                    sameSite: 'strict',  
+                    signed: true,
+                    sameSite: 'strict',
                     maxAge: 7 * 24 * 60 * 60 * 1000,
                 });
 
@@ -116,6 +116,7 @@ export const cAuth = {
                     name: req.user.name,
                     email: req.user.email,
                     role: req.user.role_id,
+                    role_name: req.user.role_name,
                     sessionId: req.user.session_id
                 }
             });

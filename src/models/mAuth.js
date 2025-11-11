@@ -65,8 +65,9 @@ export const mAuth = {
         try {
             const query = `
                 SELECT 
-                    u.id, u.name, u.email, u.password, r.name AS role_name,
-                    u.account_locked_until, u.failed_login_attempts
+                    u.id, u.name, u.email, u.password, r.id AS role_id,
+                    u.account_locked_until, u.failed_login_attempts,
+                    r.name AS role_name
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 WHERE u.email = ? AND u.status = 1

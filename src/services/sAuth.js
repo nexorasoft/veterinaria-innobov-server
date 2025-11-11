@@ -228,7 +228,8 @@ export const sAuth = {
                     userId: user.id,
                     name: user.name,
                     email: user.email,
-                    role: user.role_name,
+                    role: user.role_id,
+                    role_name: user.role_name,
                     token
                 }
             }
