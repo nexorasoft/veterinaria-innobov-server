@@ -193,16 +193,6 @@ CREATE TABLE species (
     created_at DATETIME DEFAULT (datetime('now', '-5 hours'))
 );
 
-INSERT INTO species (id, name, typical_lifespan_years) VALUES
-    ('dog', 'Perro', 13),
-    ('cat', 'Gato', 15),
-    ('bird', 'Ave', 10),
-    ('rabbit', 'Conejo', 9),
-    ('hamster', 'Hámster', 3),
-    ('turtle', 'Tortuga', 30),
-    ('fish', 'Pez', 5),
-    ('other', 'Otro', NULL);
-
 -- ============================================
 -- CLIENTES Y MASCOTAS
 -- ============================================

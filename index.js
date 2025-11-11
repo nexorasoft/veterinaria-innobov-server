@@ -3,11 +3,13 @@ import { PORT, NODE_ENV } from './src/config/env.js';
 import routes from './src/routes/index.js';
 import { logger } from './src/utils/logger.js';
 import { requestLogger } from './src/middlewares/requestLogger.js';
+import { corsMiddleware } from './src/middlewares/cors.js';
 
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(corsMiddleware);
 
 app.use(requestLogger);
 
