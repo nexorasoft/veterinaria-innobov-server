@@ -35,6 +35,23 @@ export const cAuth = {
 
             const result = await sAuth.login(loginData?.email, loginData?.password, req);
 
+            if (result.success && result.data?.token) {
+                res.cookie('auth_token', result.data.token, {
+                    httpOnly: true,     
+                    secure: process.env.NODE_ENV === 'production',
+                    signed: true,        
+                    sameSite: 'strict',  
+                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                });
+
+                const { token, ...dataWithoutToken } = result.data;
+
+                return res.status(result.code).json({
+                    ...result,
+                    data: dataWithoutToken
+                });
+            }
+
             return res.status(result.code).json(result);
         } catch (error) {
             logger.error('Error in login controller', error);
@@ -49,8 +66,8 @@ export const cAuth = {
 
     async logout(req, res) {
         try {
-            const authHeader = req.headers['authorization'];
-            const token = authHeader && authHeader.split(' ')[1];
+            const token = req.signedCookies.auth_token ||
+                (req.headers['authorization']?.split(' ')[1]);
 
             if (!token) {
                 return res.status(401).json({
@@ -63,9 +80,47 @@ export const cAuth = {
 
             const result = await sAuth.logout(token);
 
+            if (result.success) {
+                res.clearCookie('auth_token', {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    signed: true,
+                    sameSite: 'strict'
+                });
+            }
+
             return res.status(result.code).json(result);
         } catch (error) {
             logger.error('Error in logout controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async verifySession(req, res) {
+        try {
+            logger.debug('Session verification requested', {
+                userId: req.user?.id
+            });
+
+            return res.status(200).json({
+                success: true,
+                code: 200,
+                message: 'Session is valid',
+                data: {
+                    userId: req.user.id,
+                    name: req.user.name,
+                    email: req.user.email,
+                    role: req.user.role_id,
+                    sessionId: req.user.session_id
+                }
+            });
+        } catch (error) {
+            logger.error('Error in verifySession controller', error);
             return res.status(500).json({
                 success: false,
                 code: 500,

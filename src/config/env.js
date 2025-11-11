@@ -11,4 +11,5 @@ export const {
     TURSO_AUTH_TOKEN,
     ACCESS_TOKEN_SECRET_KEY,
     REFRESH_TOKEN_SECRET_KEY,
+    COOKIE_SECRET,
 } = process.env;

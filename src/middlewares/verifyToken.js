@@ -3,8 +3,14 @@ import { logger } from "../utils/logger.js";
 
 export default async function authenticateUser(req, res, next) {
     try {
-        const header = req.headers['authorization'];
-        const token = header && header.split(' ')[1];
+        // Prioridad: Cookie firmada > Header Authorization (retrocompatibilidad)
+        let token = req.signedCookies?.auth_token;
+        
+        // Si no hay cookie, intentar obtener del header (para APIs que no usan cookies)
+        if (!token) {
+            const header = req.headers['authorization'];
+            token = header && header.split(' ')[1];
+        }
 
         if (!token) {
             return res.status(401).json({
@@ -13,6 +19,7 @@ export default async function authenticateUser(req, res, next) {
             });
         }
 
+        // Verificar que la sesión existe y es válida
         const session = await mAuth.verifySessionToken(token);
         if (!session || session === null) {
             return res.status(401).json({
@@ -21,6 +28,7 @@ export default async function authenticateUser(req, res, next) {
             });
         }
 
+        // Verificar que la cuenta esté activa
         if (session.status !== 1) {
             return res.status(403).json({
                 error: 'Account deactivated',
@@ -28,11 +36,13 @@ export default async function authenticateUser(req, res, next) {
             });
         }
 
+        // Actualizar última actividad
         const updated = await mAuth.updateLastActivity(session.token);
         if (!updated) {
             logger.warn('Failed to update last activity for session', { sessionId: session.id });
         }
 
+        // Agregar información del usuario a req
         req.user = {
             id: session.user_id,
             name: session.name,
