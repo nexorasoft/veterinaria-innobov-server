@@ -8,9 +8,30 @@ const router = Router();
 
 router.post('/species',
     authenticateUser,
-    roleMiddleware(['admin', 'vet']),
+    roleMiddleware(['admin', 'cashier']),
     auditLog('CREATE', 'PARAM', 'specie'),
     cParam.createSpecie
+);
+
+router.post('/modules',
+    authenticateUser,
+    roleMiddleware(['admin']),
+    auditLog('CREATE', 'PARAM', 'module'),
+    cParam.createModule
+);
+
+router.post('/permissions',
+    authenticateUser,
+    roleMiddleware(['admin']),
+    auditLog('CREATE', 'PARAM', 'permission'),
+    cParam.createPermission
+);
+
+router.get('/modules/role/:roleId',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    auditLog('READ', 'PARAM', 'modules_by_role'),
+    cParam.getModulesByRole
 );
 
 export default router;

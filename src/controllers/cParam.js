@@ -22,5 +22,70 @@ export const cParam = {
                 data: null
             });
         }
+    },
+
+    async createModule(req, res) {
+        try {
+            const moduleData = req.body;
+
+            logger.debug('Create Module request received', {
+                name: moduleData?.name,
+            });
+
+            const result = await sParam.createModule(moduleData || {});
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in createModule controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async createPermission(req, res) {
+        try {
+            const permissionData = req.body;
+
+            logger.debug('Create Permission request received', {
+                role_id: permissionData?.role_id,
+                module_id: permissionData?.module_id
+            });
+
+            const result = await sParam.createPermission(permissionData || {});
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in createPermission controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getModulesByRole(req, res) {
+        try {
+            const { roleId } = req.params;
+
+            logger.debug('Get Modules by Role request received', { roleId });
+
+            const result = await sParam.getModulesByRole(roleId);
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getModulesByRole controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };

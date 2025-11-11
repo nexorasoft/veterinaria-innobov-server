@@ -616,3 +616,25 @@ CREATE TABLE audit_logs (
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS modules (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    icon TEXT,
+    path TEXT,
+    category TEXT,
+    order_index INTEGER DEFAULT 0,
+    active BOOLEAN DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id TEXT PRIMARY KEY,
+    role_id TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    can_view BOOLEAN DEFAULT 0,
+    can_create BOOLEAN DEFAULT 0,
+    can_edit BOOLEAN DEFAULT 0,
+    can_delete BOOLEAN DEFAULT 0,
+    FOREIGN KEY (role_id) REFERENCES roles(id),
+    FOREIGN KEY (module_id) REFERENCES modules(id)
+);
