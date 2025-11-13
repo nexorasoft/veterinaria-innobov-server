@@ -4,6 +4,7 @@ import { logger } from "../utils/logger.js";
 import { v4 as uuidv4 } from 'uuid';
 
 export const sParam = {
+    // Species
     async createSpecie(specieData) {
         try {
             if (!specieData.name || typeof specieData.name !== 'string' || specieData.name.trim() === '') {
@@ -35,7 +36,7 @@ export const sParam = {
             };
         }
     },
-
+    // Modules
     async createModule(moduleData) {
         try {
             if (!moduleData.name || typeof moduleData.name !== 'string' || moduleData.name.trim() === '') {
@@ -107,6 +108,31 @@ export const sParam = {
         }
     },
 
+    async getModulesByRole(roleId) {
+        try {
+            if (!roleId || typeof roleId !== 'string' || roleId.trim() === '') {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Role ID is required and must be a valid non-empty string',
+                    data: null
+                };
+            }
+
+            const modules = await mParam.getModulesByRole(roleId.trim());
+
+            return modules;
+        } catch (error) {
+            logger.error('Error in getModulesByRole service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving modules by role',
+                data: null
+            };
+        }
+    },
+    // Permissions
     async createPermission(permissionData) {
         try {
             if (!permissionData.role_id || typeof permissionData.role_id !== 'string' || permissionData.role_id.trim() === '') {
@@ -155,27 +181,79 @@ export const sParam = {
             };
         }
     },
-
-    async getModulesByRole(roleId) {
+    // Categories
+    async createCategory(categoryData) {
         try {
-            if (!roleId || typeof roleId !== 'string' || roleId.trim() === '') {
+            if (!categoryData.name || typeof categoryData.name !== 'string' || categoryData.name.trim() === '') {
                 return {
                     success: false,
                     code: 400,
-                    message: 'Role ID is required and must be a valid non-empty string',
+                    message: 'Category name is required and must be a non-empty string',
                     data: null
                 };
             }
 
-            const modules = await mParam.getModulesByRole(roleId.trim());
+            const newCategory = {
+                id: uuidv4(),
+                name: categoryData.name.trim(),
+                description: categoryData.description || null,
+                parent_category_id: categoryData.parent_category_id || null
+            };
 
-            return modules;
+            const result = await mParam.createCategory(newCategory);
+
+            return result;
         } catch (error) {
-            logger.error('Error in getModulesByRole service', error);
+            logger.error('Error in createCategory service', error);
             return {
                 success: false,
                 code: 500,
-                message: 'Internal server error while retrieving modules by role',
+                message: 'Internal server error while creating category',
+                data: null
+            };
+        }
+    },
+
+    async getCategories(page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const result = await mParam.getCategories(pageNum, limitNum);
+            return result;
+        } catch (error) {
+            logger.error('Error in getCategories service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving categories',
+                data: null
+            };
+        }
+    },
+
+    async searchCategoriesByName(page = 1, limit = 10, name) {
+        try {
+            if (!name || typeof name !== 'string' || name.trim() === '') {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Category name is required and must be a non-empty string',
+                    data: null
+                };
+            }
+
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+
+            const result = await mParam.searchCategoriesByName(pageNum, limitNum, name.trim());
+
+            return result;
+        } catch (error) {
+            logger.error('Error in searchCategoriesByName service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while searching categories by name',
                 data: null
             };
         }

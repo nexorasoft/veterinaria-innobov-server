@@ -131,6 +131,55 @@ export const mParam = {
         }
     },
 
+    async getModulesByRole(roleId) {
+        try {
+            const query = `
+                SELECT 
+                    m.id, m.name, m.icon, m.path, m.category, m.order_index,
+                    p.can_view, p.can_create, p.can_edit, p.can_delete
+                FROM modules m
+                JOIN permissions p ON m.id = p.module_id
+                WHERE p.role_id = ? AND p.can_view = 1
+                ORDER BY m.order_index
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [roleId]
+            });
+
+            const modules = result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                icon: row.icon,
+                path: row.path,
+                category: row.category,
+                order_index: row.order_index,
+                permissions: {
+                    can_view: Boolean(row.can_view),
+                    can_create: Boolean(row.can_create),
+                    can_edit: Boolean(row.can_edit),
+                    can_delete: Boolean(row.can_delete)
+                }
+            }));
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Modules retrieved successfully',
+                data: modules
+            };
+        } catch (error) {
+            logger.error('Error retrieving modules by role', { error: error.message, roleId });
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving modules',
+                data: null
+            };
+        }
+    },
+
     async createPermission(permissionData) {
         try {
             const query = `
@@ -190,50 +239,181 @@ export const mParam = {
         }
     },
 
-    async getModulesByRole(roleId) {
+    async createCategory(categoryData) {
         try {
             const query = `
-                SELECT 
-                    m.id, m.name, m.icon, m.path, m.category, m.order_index,
-                    p.can_view, p.can_create, p.can_edit, p.can_delete
-                FROM modules m
-                JOIN permissions p ON m.id = p.module_id
-                WHERE p.role_id = ? AND p.can_view = 1
-                ORDER BY m.order_index
+                INSERT INTO categories(
+                    id, name, description, parent_category_id
+                ) VALUES (?, ?, ?, ?);
             `;
 
             const result = await turso.execute({
                 sql: query,
-                args: [roleId]
+                args: [
+                    categoryData.id,
+                    categoryData.name,
+                    categoryData.description || null,
+                    categoryData.parent_category_id || null
+                ]
             });
 
-            const modules = result.rows.map(row => ({
-                id: row.id,
-                name: row.name,
-                icon: row.icon,
-                path: row.path,
-                category: row.category,
-                order_index: row.order_index,
-                permissions: {
-                    can_view: Boolean(row.can_view),
-                    can_create: Boolean(row.can_create),
-                    can_edit: Boolean(row.can_edit),
-                    can_delete: Boolean(row.can_delete)
+            if (result.rowsAffected === 0) {
+                logger.warn('Category creation failed: No rows affected', { name: categoryData.name });
+                return {
+                    success: false,
+                    code: 500,
+                    message: 'Failed to create category',
+                    data: null
+                };
+            }
+
+            logger.info('Category created successfully', {
+                categoryId: categoryData.id,
+                name: categoryData.name
+            });
+
+            return {
+                success: true,
+                code: 201,
+                message: 'Category created successfully',
+                data: {
+                    id: categoryData.id,
+                    name: categoryData.name
                 }
-            }));
+            };
+        } catch (error) {
+            if (error.message?.includes('UNIQUE constraint failed')) {
+                logger.warn('Category creation failed: Duplicate name', { name: categoryData.name });
+                return {
+                    success: false,
+                    code: 409,
+                    message: 'A category with this name already exists',
+                    data: null
+                };
+            }
+
+            logger.error('Error creating category', { error: error.message, name: categoryData.name });
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while creating category',
+                data: null
+            };
+        }
+    },
+
+    async getCategories(page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const offset = (pageNum - 1) * limitNum;
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM categories;
+            `;
+
+            const dataQuery = `
+                SELECT 
+                    c.id,
+                    c.name,
+                    COALESCE(p.name, 'Sin categoría padre') AS parent_name
+                FROM categories c
+                LEFT JOIN categories p ON c.parent_category_id = p.id
+                ORDER BY c.name ASC
+                LIMIT ? OFFSET ?;
+            `;
+
+            const [countResult, dataResult] = await Promise.all([
+                turso.execute(countQuery),
+                turso.execute({ sql: dataQuery, args: [limitNum, offset] })
+            ]);
+
+            const totalItems = countResult.rows[0]?.total || 0;
+            const totalPages = Math.ceil(totalItems / limitNum);
 
             return {
                 success: true,
                 code: 200,
-                message: 'Modules retrieved successfully',
-                data: modules
+                message: 'Categories retrieved successfully',
+                data: {
+                    categories: dataResult.rows,
+                    pagination: {
+                        currentPage: pageNum,
+                        totalPages: totalPages,
+                        totalItems: totalItems,
+                        itemsPerPage: limitNum,
+                        hasNextPage: pageNum < totalPages,
+                        hasPreviousPage: pageNum > 1
+                    }
+                }
             };
         } catch (error) {
-            logger.error('Error retrieving modules by role', { error: error.message, roleId });
+            logger.error('Error retrieving categories', { error: error.message });
             return {
                 success: false,
                 code: 500,
-                message: 'Internal server error while retrieving modules',
+                message: 'Internal server error while retrieving categories',
+                data: null
+            };
+        }
+    },
+
+    async searchCategoriesByName(page = 1, limit = 10, nameQuery) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const offset = (pageNum - 1) * limitNum;
+            const searchPattern = `%${nameQuery}%`;
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM categories
+                WHERE name LIKE ?;
+            `;
+
+            const dataQuery = `
+                SELECT 
+                    c.id,
+                    c.name,
+                    COALESCE(p.name, 'Sin categoría padre') AS parent_name
+                FROM categories c
+                LEFT JOIN categories p ON c.parent_category_id = p.id
+                WHERE c.name LIKE ?
+                ORDER BY c.name ASC
+                LIMIT ? OFFSET ?;
+            `;
+
+            const [countResult, dataResult] = await Promise.all([
+                turso.execute({ sql: countQuery, args: [searchPattern] }),
+                turso.execute({ sql: dataQuery, args: [searchPattern, limitNum, offset] })
+            ]);
+
+            const totalItems = countResult.rows[0]?.total || 0;
+            const totalPages = Math.ceil(totalItems / limitNum);
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Categories retrieved successfully',
+                data: {
+                    categories: dataResult.rows,
+                    pagination: {
+                        currentPage: pageNum,
+                        totalPages: totalPages,
+                        totalItems: totalItems,
+                        itemsPerPage: limitNum,
+                        hasNextPage: pageNum < totalPages,
+                        hasPreviousPage: pageNum > 1
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('Error searching categories by name', { error: error.message, nameQuery });
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while searching categories',
                 data: null
             };
         }

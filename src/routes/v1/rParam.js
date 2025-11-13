@@ -27,11 +27,29 @@ router.post('/permissions',
     cParam.createPermission
 );
 
+router.post('/categories',
+    authenticateUser,
+    roleMiddleware(['admin']),
+    auditLog('CREATE', 'PARAM', 'category'),
+    cParam.createCategory
+);
+
 router.get('/modules/role/:roleId',
     authenticateUser,
     roleMiddleware(['admin', 'cashier']),
-    auditLog('READ', 'PARAM', 'modules_by_role'),
     cParam.getModulesByRole
 );
+
+router.get('/categories',
+    authenticateUser,
+    roleMiddleware(['admin']),
+    cParam.getCategories
+);
+
+router.get('/categories/search',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    cParam.searchCategoriesByName
+);  
 
 export default router;

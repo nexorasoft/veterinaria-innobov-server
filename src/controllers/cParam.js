@@ -69,6 +69,28 @@ export const cParam = {
         }
     },
 
+    async createCategory(req, res) {
+        try {
+            const categoryData = req.body;
+
+            logger.debug('Create Category request received', {
+                name: categoryData?.name
+            });
+
+            const result = await sParam.createCategory(categoryData || {});
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in createCategory controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
     async getModulesByRole(req, res) {
         try {
             const { roleId } = req.params;
@@ -80,6 +102,45 @@ export const cParam = {
             return res.status(result.code).json(result);
         } catch (error) {
             logger.error('Error in getModulesByRole controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getCategories(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const result = await sParam.getCategories(page, limit);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getCategories controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async searchCategoriesByName(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const name = req.query.name || '';
+
+            logger.debug('Search Categories by Name request received', { name, page, limit });
+
+            const result = await sParam.searchCategoriesByName(page, limit, name);
+
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in searchCategoriesByName controller', error);
             return res.status(500).json({
                 success: false,
                 code: 500,
