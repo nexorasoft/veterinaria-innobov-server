@@ -523,3 +523,49 @@ SELECT
 FROM trusted_devices td
 JOIN users u ON td.user_id = u.id
 ORDER BY td.last_used DESC;
+
+-- ============================================
+-- VISTA ÚTIL: Devoluciones con Detalles
+-- ============================================
+
+CREATE VIEW view_purchase_returns AS
+SELECT 
+    pr.id,
+    pr.purchase_id,
+    pr.action_type,
+    pr.total_amount,
+    pr.reason,
+    pr.expected_replacement_date,
+    pr.received_date,
+    pr.status,
+    pr.created_at,
+    
+    -- Datos de la compra original
+    p.supplier_id,
+    s.name as supplier_name,
+    s.phone as supplier_phone,
+    s.email as supplier_email,
+    
+    -- Usuario que registró
+    u.name as created_by,
+    
+    -- Resumen
+    COUNT(prd.id) as total_items,
+    SUM(prd.quantity) as total_quantity,
+    
+    -- Días transcurridos
+    CAST(julianday('now', '-5 hours') - julianday(pr.created_at) AS INTEGER) as days_since_return,
+    
+    -- Para reposiciones pendientes
+    CASE 
+        WHEN pr.action_type = 'REPLACEMENT' AND pr.status = 'PENDING' THEN
+            CAST(julianday(pr.expected_replacement_date) - julianday('now', '-5 hours') AS INTEGER)
+        ELSE NULL
+    END as days_until_replacement
+
+FROM purchase_returns pr
+JOIN purchases p ON pr.purchase_id = p.id
+JOIN suppliers s ON p.supplier_id = s.id
+JOIN users u ON pr.user_id = u.id
+LEFT JOIN purchase_return_details prd ON pr.id = prd.return_id
+GROUP BY pr.id;

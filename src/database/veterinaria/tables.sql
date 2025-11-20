@@ -638,3 +638,105 @@ CREATE TABLE IF NOT EXISTS permissions (
     FOREIGN KEY (role_id) REFERENCES roles(id),
     FOREIGN KEY (module_id) REFERENCES modules(id)
 );
+
+-- ============================================
+-- TABLAS PARA GESTIÓN DE DEVOLUCIONES
+-- ============================================
+
+-- Tabla principal de devoluciones
+CREATE TABLE IF NOT EXISTS purchase_returns (
+    id TEXT PRIMARY KEY,
+    purchase_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    
+    -- Tipo de acción
+    action_type TEXT CHECK(action_type IN ('REPLACEMENT', 'REFUND')) NOT NULL,
+    
+    -- Montos
+    total_amount REAL NOT NULL,
+    
+    -- Detalles
+    reason TEXT NOT NULL,
+    
+    -- Fechas
+    expected_replacement_date DATE,  -- Solo si action_type = REPLACEMENT
+    received_date DATETIME,           -- Cuando llega la reposición
+    
+    -- Estado
+    status TEXT CHECK(status IN ('PENDING', 'COMPLETED', 'CANCELLED')) DEFAULT 'PENDING',
+    
+    notes TEXT,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+-- Detalle de productos devueltos
+CREATE TABLE IF NOT EXISTS purchase_return_details (
+    id TEXT PRIMARY KEY,
+    return_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    
+    quantity INTEGER NOT NULL,
+    price REAL NOT NULL,
+    amount REAL NOT NULL,
+    
+    -- Tipo de defecto
+    defect_type TEXT CHECK(defect_type IN ('DAMAGED', 'EXPIRED', 'WRONG_PRODUCT', 'QUALITY_ISSUE', 'OTHER')),
+    
+    notes TEXT,
+    
+    FOREIGN KEY (return_id) REFERENCES purchase_returns(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+);
+
+-- Define las cajas físicas (Ej: Caja Principal, Caja Farmacia)
+CREATE TABLE cash_registers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    status TEXT CHECK(status IN ('ABIERTA', 'CERRADA')) DEFAULT 'CERRADA',
+    current_user_id TEXT, -- Quién la tiene abierta actualmente
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
+
+-- Registra cada turno/sesión de caja (Apertura y Cierre)
+CREATE TABLE cash_shifts (
+    id TEXT PRIMARY KEY,
+    cash_register_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    
+    -- Apertura
+    start_time DATETIME NOT NULL,
+    start_amount REAL NOT NULL, -- Base inicial de dinero
+    
+    -- Cierre
+    end_time DATETIME,
+    expected_amount REAL, -- Calculado por el sistema (Base + Ventas - Gastos)
+    actual_amount REAL,   -- Lo que el usuario contó físicamente
+    difference REAL,      -- (actual - expected) Sobrante o Faltante
+    
+    status TEXT CHECK(status IN ('ABIERTA', 'CERRADA')) DEFAULT 'ABIERTA',
+    notes TEXT,
+    
+    FOREIGN KEY (cash_register_id) REFERENCES cash_registers(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE bank_accounts (
+    id TEXT PRIMARY KEY,
+    bank_name TEXT NOT NULL, -- Ej: Banco Pichincha, Produbanco
+    account_number TEXT,
+    account_type TEXT, -- Ahorros/Corriente
+    holder_name TEXT,
+    current_balance REAL DEFAULT 0, -- Saldo actual (Opcional, calculado es mejor)
+    active BOOLEAN DEFAULT 1
+);
+
+INSERT INTO bank_accounts (id, bank_name, holder_name) VALUES 
+('ba_001', 'Banco Pichincha', 'Veterinaria Patitas S.A.'),
+('ba_002', 'Produbanco', 'Veterinaria Patitas S.A.');
+
+ALTER TABLE sales ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id);
+ALTER TABLE purchases ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id);

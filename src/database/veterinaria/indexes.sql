@@ -96,3 +96,11 @@ CREATE INDEX idx_login_attempts_ip ON login_attempts(ip_address);
 CREATE INDEX idx_login_attempts_date ON login_attempts(created_at);
 CREATE INDEX idx_trusted_devices_user ON trusted_devices(user_id);
 CREATE INDEX idx_two_factor_codes_user ON two_factor_codes(user_id);
+
+-- Índices para optimización
+CREATE INDEX idx_purchase_returns_purchase ON purchase_returns(purchase_id);
+CREATE INDEX idx_purchase_returns_status ON purchase_returns(status);
+CREATE INDEX idx_purchase_returns_action ON purchase_returns(action_type);
+CREATE INDEX idx_purchase_returns_date ON purchase_returns(expected_replacement_date);
+CREATE INDEX idx_purchase_return_details_return ON purchase_return_details(return_id);
+CREATE INDEX idx_purchase_return_details_product ON purchase_return_details(product_id);

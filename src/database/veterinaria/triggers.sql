@@ -377,3 +377,32 @@ BEGIN
     AND is_active = 1
     AND expires_at > datetime('now', '-5 hours');
 END;
+
+-- ============================================
+-- TRIGGER: Notificar reposiciones vencidas
+-- ============================================
+
+CREATE TRIGGER trg_notify_overdue_replacements
+AFTER INSERT ON purchase_returns
+WHEN NEW.action_type = 'REPLACEMENT' 
+AND NEW.status = 'PENDING'
+AND julianday(NEW.expected_replacement_date) < julianday('now', '-5 hours')
+BEGIN
+    INSERT INTO notifications (
+        id,
+        title,
+        message,
+        type,
+        priority,
+        related_entity_type,
+        related_entity_id
+    ) VALUES (
+        'notif_' || hex(randomblob(16)),
+        '⚠️ Reposición Vencida',
+        'La reposición de la devolución ' || NEW.id || ' ya pasó su fecha esperada (' || NEW.expected_replacement_date || ')',
+        'STOCK',
+        'URGENTE',
+        'purchase_return',
+        NEW.id
+    );
+END;
