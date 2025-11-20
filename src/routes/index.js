@@ -4,6 +4,9 @@ import paramRoutes from './v1/rParam.js';
 import clientRoutes from './v1/rClient.js';
 import productRoutes from './v1/rProduct.js';
 import supplierRoutes from './v1/rSupplier.js';
+import symptomRoutes from './v1/rSymptom.js';
+import purchaseRoutes from './v1/rPurchase.js';
+import cashRoutes from './v1/rCash.js';
 
 const router = Router();
 
@@ -21,5 +24,8 @@ router.use('/param', paramRoutes);
 router.use('/client', clientRoutes);
 router.use('/product', productRoutes);
 router.use('/supplier', supplierRoutes);
+router.use('/symptom', symptomRoutes);
+router.use('/purchase', purchaseRoutes);
+router.use('/cash', cashRoutes);
 
 export default router;
