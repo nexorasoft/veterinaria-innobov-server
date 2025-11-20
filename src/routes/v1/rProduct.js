@@ -70,4 +70,10 @@ router.patch('/:productId/activate',
     cProduct.activateProduct
 );
 
+router.get('/get/medicines',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    cProduct.getMedicineProducts
+);
+
 export default router;

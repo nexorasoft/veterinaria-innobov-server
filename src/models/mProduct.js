@@ -710,5 +710,78 @@ export const mProduct = {
                 data: null
             };
         }
+    },
+
+    async getMedicineProducts(page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const offset = (pageNum - 1) * limitNum;
+
+            const countQuery = `
+                SELECT COUNT(*) AS total
+                FROM products
+                WHERE is_medicine = 1;
+            `;
+
+            const dataQuery = `
+                SELECT 
+                    p.id as product_id,
+                    p.code AS product_code,
+                    p.name AS product_name,
+                    c.name AS category_name,
+                    p.stock AS stock_quantity,
+                    p.min_stock AS min_stock_quantity,
+                    p.unit AS unit_measure,
+                    p.sale_price AS sale_price,
+                    p.purchase_price AS purchase_price,
+                    p.active AS is_active
+                FROM products p 
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.is_medicine = 1
+                ORDER BY p.name ASC
+                LIMIT ? OFFSET ?;
+            `;
+
+            const [countResult, dataResult] = await Promise.all([
+                turso.execute({ sql: countQuery }),
+                turso.execute({ sql: dataQuery, args: [limitNum, offset] })
+            ]);
+
+            if (dataResult.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No medicine products found',
+                    data: null
+                };
+            }
+            const totalItems = countResult.rows[0]?.total || 0;
+            const totalPages = Math.ceil(totalItems / limitNum);
+            return {
+                success: true,
+                code: 200,
+                message: 'Medicine products retrieved successfully',
+                data: {
+                    products: dataResult.rows,
+                    pagination: {
+                        currentPage: pageNum,
+                        totalPages: totalPages,
+                        totalItems: totalItems,
+                        itemsPerPage: limitNum,
+                        hasNextPage: pageNum < totalPages,
+                        hasPreviousPage: pageNum > 1
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('Error retrieving medicine products', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'An error occurred while retrieving medicine products',
+                data: null
+            };
+        }
     }
 };

@@ -284,5 +284,23 @@ export const sProduct = {
                 data: null
             };
         }   
+    },
+
+    async getMedicineProducts(page=1, limit=10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+
+            const result = await mProduct.getMedicineProducts(pageNum, limitNum);
+            return result;
+        } catch (error) {
+            logger.error('Error in getMedicineProducts service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving medicine products',
+                data: null
+            };
+        }       
     }
 };

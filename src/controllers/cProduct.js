@@ -183,5 +183,23 @@ export const cProduct = {
                 data: null
             });
         }
+    },
+
+    async getMedicineProducts(req, res) {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+
+            const result = await sProduct.getMedicineProducts(page, limit);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getMedicineProducts controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };
