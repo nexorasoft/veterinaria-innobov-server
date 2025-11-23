@@ -52,4 +52,10 @@ router.get('/categories/search',
     cParam.searchCategoriesByName
 );  
 
+router.get('/species/dropdown',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    cParam.getSpeciesForDropdown
+);
+
 export default router;

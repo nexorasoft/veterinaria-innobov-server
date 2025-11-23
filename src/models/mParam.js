@@ -417,5 +417,42 @@ export const mParam = {
                 data: null
             };
         }
+    },
+
+    async getSpeciesForDropdown() {
+        try {
+            const query = `
+                SELECT id, name
+                FROM species
+                ORDER BY name ASC;
+            `;
+
+            const result = await turso.execute(query);
+
+            if (result.rows.length === 0) {
+                logger.info('No species found for dropdown');
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No species available',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Species retrieved successfully',
+                data: result.rows
+            };
+        } catch (error) {
+            logger.error('Error retrieving all species', { error: error.message });
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving species',
+                data: null
+            };
+        }
     }
 };

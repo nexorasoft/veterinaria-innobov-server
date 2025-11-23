@@ -257,5 +257,20 @@ export const sParam = {
                 data: null
             };
         }
+    },
+
+    async getSpeciesForDropdown() {
+        try {
+            const result = await mParam.getSpeciesForDropdown();
+            return result;
+        } catch (error) {
+            logger.error('Error in getSpeciesForDropdown service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving species for dropdown',
+                data: null
+            };
+        }
     }
 };

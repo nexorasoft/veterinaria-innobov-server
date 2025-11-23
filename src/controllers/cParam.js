@@ -148,5 +148,20 @@ export const cParam = {
                 data: null
             });
         }
+    },
+
+    async getSpeciesForDropdown(req, res) {
+        try {
+            const result = await sParam.getSpeciesForDropdown();
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getSpeciesForDropdown controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };
