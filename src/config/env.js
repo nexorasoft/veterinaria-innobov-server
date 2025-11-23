@@ -12,4 +12,7 @@ export const {
     ACCESS_TOKEN_SECRET_KEY,
     REFRESH_TOKEN_SECRET_KEY,
     COOKIE_SECRET,
+    CLOUD_NAME,
+    CLOUD_API_KEY,
+    CLOUD_API_SECRET
 } = process.env;
