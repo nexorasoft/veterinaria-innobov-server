@@ -49,7 +49,6 @@ export const cProduct = {
             const limit = parseInt(req.query.limit) || 10;
 
             const result = await sProduct.searchProducts(searchTerm, page, limit);
-            console.log(result);
             return res.status(result.code).json(result);
         } catch (error) {
             logger.error('Error in searchProducts controller', error);
