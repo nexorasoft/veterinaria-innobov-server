@@ -7,6 +7,7 @@ import supplierRoutes from './v1/rSupplier.js';
 import symptomRoutes from './v1/rSymptom.js';
 import purchaseRoutes from './v1/rPurchase.js';
 import cashRoutes from './v1/rCash.js';
+import petRoutes from './v1/rPet.js';
 
 const router = Router();
 
@@ -27,5 +28,6 @@ router.use('/supplier', supplierRoutes);
 router.use('/symptom', symptomRoutes);
 router.use('/purchase', purchaseRoutes);
 router.use('/cash', cashRoutes);
+router.use('/pet', petRoutes);
 
 export default router;
