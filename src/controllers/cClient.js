@@ -1,4 +1,3 @@
-import { createClient } from "@libsql/client";
 import { sClient } from "../services/sClient.js";
 import { logger } from "../utils/logger.js";
 

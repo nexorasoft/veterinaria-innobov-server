@@ -54,8 +54,6 @@ export const mClient = {
                 args: args
             });
 
-            console.log(result);
-
             if (result.rows.length === 0) {
                 return {
                     success: false,
@@ -332,7 +330,6 @@ export const mClient = {
             }
 
             values.push(clientId);
-            console.log('Update values:', values);
 
             const query = `
                 UPDATE clients
