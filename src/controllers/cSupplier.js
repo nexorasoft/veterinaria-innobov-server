@@ -61,5 +61,95 @@ export const cSupplier = {
                 data: null
             });
         }
+    },
+
+    async getAllSuppliers(req, res) {
+        try {
+            const result = await sSupplier.getAllSuppliers(req.query);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getAllSuppliers controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getProfile(req, res) {
+        try {
+            const result = await sSupplier.getSupplierProfile(req.params.id);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getProfile controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async update(req, res) {
+        try {
+            const result = await sSupplier.updateSupplier(req.params.id, req.body);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in update controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getAccountStatus(req, res) {
+        try {
+            const result = await sSupplier.getAccountStatus(req.params.id);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getAccountStatus controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getPurchases(req, res) {
+        try {
+            const result = await sSupplier.getPurchasesHistory(req.params.id);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getPurchases controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
+    },
+
+    async getProductsCatalog(req, res) {
+        try {
+            const result = await sSupplier.getCatalog(req.params.id);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getProductsCatalog controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };

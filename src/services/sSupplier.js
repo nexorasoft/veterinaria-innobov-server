@@ -87,5 +87,154 @@ export const sSupplier = {
                 data: null
             };
         }
+    },
+
+    async getAllSuppliers(queryParams) {
+        try {
+            const page = parseInt(queryParams.page) || 1;
+            const limit = parseInt(queryParams.limit) || 10;
+            const search = queryParams.search || '';
+            const result = await mSupplier.getAllSuppliers({ page, limit, search });
+            return result;
+        } catch (error) {
+            logger.error('Error in getAllSuppliers service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving all suppliers',
+                data: null
+            };
+        }
+    },
+
+    async getSupplierProfile(id) {
+        try {
+            if (!id) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Supplier ID is required',
+                    data: null
+                };
+            }
+
+            return await mSupplier.getSupplierById(id);
+        } catch (error) {
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving supplier profile',
+                data: null
+            };
+        }
+    },
+
+    async updateSupplier(id, data) {
+        try {
+            if (!id) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Supplier ID is required',
+                    data: null
+                };
+            }
+
+            const cleanData = {};
+            if (data.name) cleanData.name = data.name.trim();
+            if (data.ruc) cleanData.ruc = data.ruc.trim();
+            if (data.phone) cleanData.phone = data.phone.trim();
+            if (data.contact_person) cleanData.contact_person = data.contact_person.trim();
+            if (data.email) cleanData.email = data.email.trim().toLowerCase();
+            if (data.address) cleanData.address = data.address.trim();
+            if (data.payment_terms) cleanData.payment_terms = data.payment_terms;
+            if (data.active !== undefined) cleanData.active = data.active;
+
+            if (Object.keys(cleanData).length === 0) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'No valid data provided',
+                    data: null
+                };
+            }
+
+            return await mSupplier.updateSupplier(id, cleanData);
+        } catch (error) {
+            logger.error('Service update error', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async getAccountStatus(id) {
+        try {
+            if (!id) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Supplier ID is required',
+                    data: null
+                };
+            }
+
+            return await mSupplier.getSupplierAccountStatus(id);
+        } catch (error) {
+            logger.error('Service getAccountStatus error', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async getPurchasesHistory(id) {
+        try {
+            if (!id) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Supplier ID is required',
+                    data: null
+                };
+            }
+            return await mSupplier.getSupplierPurchases(id);
+        } catch (error) {
+            logger.error('Service getPurchasesHistory error', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async getCatalog(id) {
+        try {
+            if (!id) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Supplier ID is required',
+                    data: null
+                };
+            }
+            return await mSupplier.getSupplierProducts(id);
+        } catch (error) {
+            logger.error('Service getCatalog error', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
     }
 };
