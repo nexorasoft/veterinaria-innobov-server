@@ -8,6 +8,7 @@ import symptomRoutes from './v1/rSymptom.js';
 import purchaseRoutes from './v1/rPurchase.js';
 import cashRoutes from './v1/rCash.js';
 import petRoutes from './v1/rPet.js';
+import auditRoutes from './v1/rAudit.js';
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use('/symptom', symptomRoutes);
 router.use('/purchase', purchaseRoutes);
 router.use('/cash', cashRoutes);
 router.use('/pet', petRoutes);
+router.use('/audit', auditRoutes);
 
 export default router;
