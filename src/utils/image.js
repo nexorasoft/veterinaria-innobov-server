@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
-import { Readable } from 'stream'; // Módulo nativo de Node.js
+import { Readable } from 'stream';
 import { CLOUD_NAME, CLOUD_API_KEY, CLOUD_API_SECRET } from '../config/env.js';
 
 cloudinary.config({
@@ -10,12 +10,6 @@ cloudinary.config({
 });
 
 export const uImage = {
-    /**
-     * Sube una imagen optimizada a Cloudinary desde un buffer.
-     * @param {Buffer} imageBuffer - El buffer del archivo.
-     * @param {string} folderName - Nombre de la carpeta en Cloudinary.
-     * @param {object} options - Opciones adicionales (maxWidth, maxHeight, public_id, etc).
-     */
     async uploadImageOptimized(imageBuffer, folderName, options = {}) {
         const baseTransformations = [
             { fetch_format: "auto" },
