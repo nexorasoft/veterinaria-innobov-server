@@ -272,5 +272,103 @@ export const sParam = {
                 data: null
             };
         }
+    },
+
+    async getCategoryById(categoryId) {
+        try {
+            if (!categoryId || typeof categoryId !== 'string' || categoryId.trim() === '') {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Category ID is required and must be a valid non-empty string',
+                    data: null
+                };
+            }
+
+            const result = await mParam.getCategoryById(categoryId.trim());
+            return result;
+        } catch (error) {
+            logger.error('Error in getCategoryById service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving category by ID',
+                data: null
+            };
+        }
+    },
+
+    async updateCategory(categoryId, updateData) {
+        try {
+            if (!categoryId || typeof categoryId !== 'string' || categoryId.trim() === '') {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Category ID is required and must be a valid non-empty string',
+                    data: null
+                };
+            }
+
+            const cleanData = {};
+            if (updateData.name) cleanData.name = updateData.name.trim();
+            if (updateData.description) cleanData.description = updateData.description.trim();
+            if (updateData.active !== undefined) cleanData.active = updateData.active;
+
+            if (updateData.parent_category_id !== undefined) {
+                if (updateData.parent_category_id === categoryId) {
+                    return {
+                        success: false,
+                        code: 400,
+                        message: 'A category cannot be its own parent.',
+                        data: null
+                    };
+                }
+                cleanData.parent_category_id = updateData.parent_category_id || null;
+            }
+
+            if (Object.keys(cleanData).length === 0) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'No valid data provided',
+                    data: null
+                };
+            }
+
+            const result = await mParam.updateCategory(categoryId.trim(), cleanData);
+            return result;
+        } catch (error) {
+            logger.error('Error in updateCategory service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while updating category',
+                data: null
+            };
+        }
+    },
+
+    async deleteCategory(categoryId) {
+        try {
+            if (!categoryId || typeof categoryId !== 'string' || categoryId.trim() === '') {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Category ID is required and must be a valid non-empty string',
+                    data: null
+                };
+            }
+
+            const result = await mParam.deleteCategory(categoryId.trim());
+            return result;
+        } catch (error) {
+            logger.error('Error in deleteCategory service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while deleting category',
+                data: null
+            };
+        }
     }
 };
