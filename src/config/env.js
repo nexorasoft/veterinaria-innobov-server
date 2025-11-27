@@ -14,5 +14,6 @@ export const {
     COOKIE_SECRET,
     CLOUD_NAME,
     CLOUD_API_KEY,
-    CLOUD_API_SECRET
+    CLOUD_API_SECRET,
+    RUC_DNI_API_URL
 } = process.env;
