@@ -698,5 +698,30 @@ export const mClient = {
                 data: null
             };
         }
+    },
+
+    async getClientBySale(identification) {
+        try {
+            const query = `
+                SELECT id, dni, name, phone, email
+                FROM clients
+                WHERE dni = ?
+                LIMIT 1;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [identification]
+            });
+
+            if (result.rows.length === 0) {
+                return null;
+            }
+
+            return result.rows[0];
+        } catch (error) {
+            logger.error('Error retrieving client by sale identification:', error);
+            return null;
+        }
     }
 };
