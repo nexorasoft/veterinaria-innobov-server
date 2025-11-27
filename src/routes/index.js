@@ -9,6 +9,7 @@ import purchaseRoutes from './v1/rPurchase.js';
 import cashRoutes from './v1/rCash.js';
 import petRoutes from './v1/rPet.js';
 import auditRoutes from './v1/rAudit.js';
+import salesRoutes from './v1/rSales.js';
 
 const router = Router();
 
@@ -31,5 +32,6 @@ router.use('/purchase', purchaseRoutes);
 router.use('/cash', cashRoutes);
 router.use('/pet', petRoutes);
 router.use('/audit', auditRoutes);
+router.use('/sales', salesRoutes);
 
 export default router;
