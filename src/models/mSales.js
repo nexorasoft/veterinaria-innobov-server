@@ -73,11 +73,13 @@ export const mSales = {
 
     async registerSale(saleData) {
         const tx = await turso.transaction();
+
         try {
             let finalClientId = saleData.client_id;
 
             if (!finalClientId && saleData.client_data) {
                 const c = saleData.client_data;
+
                 const checkClient = await tx.execute({
                     sql: "SELECT id FROM clients WHERE dni = ?",
                     args: [c.dni]
@@ -87,10 +89,9 @@ export const mSales = {
                     finalClientId = checkClient.rows[0].id;
                 } else {
                     finalClientId = uuidv4();
-
                     const insertClientSql = `
-                        INSERT INTO clients (id, dni, name, phone, email, address, active)
-                        VALUES (?, ?, ?, ?, ?, ?, 1);
+                        INSERT INTO clients (id, dni, name, phone, email, address, active, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now', '-5 hours'));
                     `;
                     await tx.execute({
                         sql: insertClientSql,
@@ -98,7 +99,7 @@ export const mSales = {
                             finalClientId,
                             c.dni,
                             c.name.toUpperCase(),
-                            c.phone,
+                            c.phone || null,
                             c.email || null,
                             c.address || null
                         ]
@@ -106,13 +107,9 @@ export const mSales = {
                 }
             }
 
-            if (!finalClientId) { 
-                return { 
-                    success: false,
-                    code: 400,
-                    message: 'Client information is required to register a sale.',
-                    data: null
-                }
+            if (!finalClientId) {
+                await tx.rollback();
+                return { success: false, code: 400, message: 'La información del cliente es obligatoria.', data: null };
             };
 
             let currentShiftId = null;
@@ -122,30 +119,30 @@ export const mSales = {
                 args: [saleData.user_id]
             });
 
-            if (shiftCheck.rows.length === 0) {
-                await tx.rollback();
-                return {
-                    success: false,
-                    code: 400,
-                    message: 'No open cash shift found for the user.',
-                    data: null
-                };
+            if (shiftCheck.rows.length > 0) {
+                currentShiftId = shiftCheck.rows[0].id;
             }
 
-            currentShiftId = shiftCheck.rows[0].id;
+            if (saleData.payment_method === 'EFECTIVO' && !currentShiftId) {
+                await tx.rollback();
+                return { success: false, code: 400, message: 'Para cobrar en EFECTIVO debes abrir caja primero.', data: null };
+            }
 
             const insertSaleSql = `
                 INSERT INTO sales (
                     id, client_id, user_id, 
                     subtotal, tax, discount, total, 
-                    payment_method, status, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    payment_method, status, notes, 
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-5 hours'));
             `;
 
             await tx.execute({
                 sql: insertSaleSql,
                 args: [
-                    saleData.id, finalClientId, saleData.user_id,
+                    saleData.id,
+                    finalClientId,
+                    saleData.user_id,
                     saleData.subtotal, saleData.tax, saleData.discount, saleData.total,
                     saleData.payment_method, 'EMITIDA', saleData.notes
                 ]
@@ -162,9 +159,14 @@ export const mSales = {
                 await tx.execute({
                     sql: insertDetailSql,
                     args: [
-                        item.sale_detail_id, saleData.id, item.item_type,
-                        item.product_id || null, item.service_id || null,
-                        item.quantity, item.price, item.subtotal
+                        item.sale_detail_id,
+                        saleData.id,
+                        item.item_type,
+                        item.product_id || null,
+                        item.service_id || null,
+                        item.quantity,
+                        item.price,
+                        item.total_line
                     ]
                 });
 
@@ -186,7 +188,8 @@ export const mSales = {
                 }
             }
 
-            const movementSql = `
+            if (saleData.payment_method === 'EFECTIVO') {
+                const movementSql = `
                     INSERT INTO cash_movements (
                         id, cash_shift_id, user_id, 
                         type, category, concept, 
@@ -194,17 +197,68 @@ export const mSales = {
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-5 hours'));
                 `;
 
-            await tx.execute({
-                sql: movementSql,
-                args: [
-                    saleData.cash_movement_id, currentShiftId, saleData.user_id,
-                    'INGRESO', 'VENTA', `Venta #${saleData.id.slice(0, 8)}`,
-                    saleData.total, saleData.id
-                ]
-            });
+                await tx.execute({
+                    sql: movementSql,
+                    args: [
+                        uuidv4(),
+                        currentShiftId,
+                        saleData.user_id,
+                        'INGRESO', 'VENTA', `Venta Contado #${saleData.id.slice(0, 6)}`,
+                        saleData.total,
+                        saleData.id
+                    ]
+                });
+            }
 
-            console.log('Insert Cash Movement SQL executed');
+            else if (saleData.payment_method === 'TRANSFERENCIA') {
+                const movementSql = `
+                    INSERT INTO cash_movements (
+                        id, cash_shift_id, user_id, 
+                        type, category, concept, 
+                        amount, sale_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-5 hours'));
+                `;
 
+                await tx.execute({
+                    sql: movementSql,
+                    args: [
+                        uuidv4(),
+                        currentShiftId,
+                        saleData.user_id,
+                        'INGRESO', 'VENTA', `Transferencia Banco #${saleData.id.slice(0, 6)}`,
+                        saleData.total,
+                        saleData.id
+                    ]
+                });
+            }
+
+            else if (saleData.payment_method === 'CREDITO') {
+                const daysToPay = saleData.days_to_pay || 30;
+
+                const receivableSql = `
+                    INSERT INTO accounts_receivable (
+                        id, client_id, sale_id, 
+                        amount, amount_paid, balance, 
+                        due_date, status, created_at, updated_at
+                    ) VALUES (
+                        ?, ?, ?, 
+                        ?, 0, ?, 
+                        date('now', '+${daysToPay} days'), 'PENDIENTE', 
+                        datetime('now', '-5 hours'), datetime('now', '-5 hours')
+                    );
+                `;
+
+                await tx.execute({
+                    sql: receivableSql,
+                    args: [
+                        uuidv4(),
+                        finalClientId,
+                        saleData.id,
+                        saleData.total,
+                        saleData.total
+                    ]
+                });
+            }
 
             await tx.commit();
             logger.info('Sale registered successfully', { saleId: saleData.id });
@@ -212,19 +266,25 @@ export const mSales = {
             return {
                 success: true,
                 code: 201,
-                message: 'Sale registered successfully',
+                message: 'Venta registrada correctamente',
                 data: { sale_id: saleData.id }
             };
+
         } catch (error) {
             await tx.rollback();
-            logger.error('mSales.registerSale: ' + error.message);
+
+            if (error.message.includes('Stock insuficiente')) {
+                return { success: false, code: 409, message: error.message, data: null };
+            }
+
+            logger.error('mSales.registerSale error: ' + error.message);
             return {
                 success: false,
                 code: 500,
-                message: 'An error occurred while registering the sale: ' + error.message,
+                message: 'Error al registrar la venta: ' + error.message,
                 data: null
             };
         }
-    },
+    }
 
 }
