@@ -331,4 +331,283 @@ export const mSymptom = {
             };
         }
     },
+
+    async getMedicineSymptoms(page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const offset = (pageNum - 1) * limitNum;
+
+            const query = `
+                SELECT 
+                    p.id AS medicine_id,
+                    s.id AS symptom_id,
+                    p.name AS medicine_name,
+                    s.name AS symptom_name,
+                    ms.effectiveness,
+                    COUNT(*) OVER() as total_count
+                FROM medicine_symptom ms
+                JOIN products p ON ms.medicine_id = p.id
+                JOIN symptoms s ON ms.symptom_id = s.id
+                ORDER BY p.name ASC, s.name ASC
+                LIMIT ? OFFSET ?;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [limitNum, offset]
+            });
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No medicine-symptom associations found',
+                    data: null
+                };
+            }
+
+            const total = result.rows[0]?.total_count || 0;
+            const medicineSymptoms = result.rows.map(({ total_count, ...medicineSymptom }) => medicineSymptom);
+            const totalPages = Math.ceil(total / limitNum);
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Medicine-symptom associations retrieved successfully',
+                data: {
+                    medicineSymptoms,
+                    pagination: {
+                        currentPage: pageNum,
+                        totalPages,
+                        totalItems: total,
+                        itemsPerPage: limitNum,
+                        hasNextPage: pageNum < totalPages,
+                        hasPreviousPage: pageNum > 1
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('Error retrieving medicine-symptom associations', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error retrieving medicine-symptom associations',
+                data: null
+            };
+        }
+    },
+
+    async updateAssociatedSymptomEffectiveness(medicineId, symptomId, data) {
+        try {
+            const fields = [];
+            const values = [];
+
+            Object.keys(data).forEach(key => {
+                fields.push(`${key} = ?`);
+                values.push(data[key]);
+            });
+
+            if (fields.length === 0) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'No fields to update',
+                    data: null
+                };
+            }
+
+            values.push(medicineId, symptomId);
+
+            const query = `
+                UPDATE medicine_symptom
+                SET ${fields.join(', ')}
+                WHERE medicine_id = ? AND symptom_id = ?;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: values
+            });
+
+            if (result.rowsAffected === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No association found to update',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Association updated successfully',
+                data: null
+            };
+        } catch (error) {
+            logger.error('Error updating association', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error updating association',
+                data: null
+            };
+        }
+    },
+
+    async deleteAssociatedSymptom(medicineId, symptomId) {
+        try {
+            const query = `
+                DELETE FROM medicine_symptom
+                WHERE medicine_id = ? AND symptom_id = ?;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [medicineId, symptomId]
+            });
+
+            if (result.rowsAffected === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No association found to delete',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Association deleted successfully',
+                data: null
+            };
+        } catch (error) {
+            logger.error('Error deleting association', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error deleting association',
+                data: null
+            };
+        }
+    },
+
+    async getDetailAssociatedSymptoms(medicineId, symptomId) {
+        try {
+            const query = `
+                SELECT 
+                    s.id AS symptom_id,
+                    p.id AS medicine_id,
+                    p.name AS medicine_name,
+                    s.name AS symptom_name,
+                    ms.effectiveness,
+                    ms.notes
+                FROM medicine_symptom ms
+                JOIN symptoms s ON ms.symptom_id = s.id
+                JOIN products p ON ms.medicine_id = p.id
+                WHERE ms.medicine_id = ? AND ms.symptom_id = ?;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: [medicineId, symptomId]
+            });
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No symptoms associated with this medicine',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Associated symptoms retrieved successfully',
+                data: result.rows
+            };
+        } catch (error) {
+            logger.error('Error retrieving associated symptoms', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error retrieving associated symptoms',
+                data: null
+            };
+        }
+    },
+
+    async searchAssociatedSymptoms(search, page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const offset = (pageNum - 1) * limitNum;
+
+            const query = `
+                SELECT 
+                    p.id AS medicine_id,
+                    s.id AS symptom_id,
+                    p.name AS medicine_name,
+                    s.name AS symptom_name,
+                    ms.effectiveness,
+                    COUNT(*) OVER() as total_count
+                FROM medicine_symptom ms
+                JOIN products p ON ms.medicine_id = p.id
+                JOIN symptoms s ON ms.symptom_id = s.id
+                WHERE (p.name LIKE '%' || ? || '%' 
+                    OR s.name LIKE '%' || ? || '%' 
+                    OR p.code LIKE '%' || ? || '%')
+                ORDER BY p.name ASC, s.name ASC
+                LIMIT ? OFFSET ?
+            `;
+
+            const searchPatern = `%${search}%`;
+            const result = await turso.execute({
+                sql: query,
+                args: [searchPatern, searchPatern, searchPatern, limitNum, offset]
+            });
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No medicine-symptom associations found for the search term',
+                    data: null
+                };
+            }
+
+            const total = result.rows[0]?.total_count || 0;
+            const medicineSymptoms = result.rows.map(({ total_count, ...medicineSymptom }) => medicineSymptom);
+            const totalPages = Math.ceil(total / limitNum);
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Medicine-symptom associations retrieved successfully',
+                data: {
+                    medicineSymptoms,
+                    pagination: {
+                        currentPage: pageNum,
+                        totalPages,
+                        totalItems: total,
+                        itemsPerPage: limitNum,
+                        hasNextPage: pageNum < totalPages,
+                        hasPreviousPage: pageNum > 1
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('Error searching medicine-symptom associations', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error searching medicine-symptom associations',
+                data: null
+            };
+        }
+    }
 };

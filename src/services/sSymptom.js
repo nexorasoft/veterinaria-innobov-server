@@ -118,5 +118,121 @@ export const sSymptom = {
                 data: null
             };
         }
+    },
+
+    async getMedicineSymptoms(page = 1, limit = 10) {
+        try {
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const result = await mSymptom.getMedicineSymptoms(pageNum, limitNum);
+            return result;
+        } catch (error) {
+            logger.error('Error in getMedicineSymptoms service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async updateAssociatedSymptomEffectiveness(medicineId, symptomId, updateData) {
+        try {
+            if (!medicineId || !symptomId) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'medicineId and symptomId are required',
+                    data: null
+                };
+            }
+
+            const result = await mSymptom.updateAssociatedSymptomEffectiveness(medicineId, symptomId, updateData);
+            return result;
+        } catch (error) {
+            logger.error('Error in updateAssociatedSymptomEffectiveness service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async deleteAssociatedSymptom(medicineId, symptomId) {
+        try {
+            if (!medicineId || !symptomId) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'medicineId and symptomId are required',
+                    data: null
+                };
+            }
+
+            const result = await mSymptom.deleteAssociatedSymptom(medicineId, symptomId);
+            return result;
+        } catch (error) {
+            logger.error('Error in deleteAssociatedSymptom service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async getDetailAssociatedSymptoms(medicineId, symptomId) {
+        try {
+            if (!medicineId || !symptomId) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'medicineId and symptomId are required',
+                    data: null
+                };
+            }
+
+            const result = await mSymptom.getDetailAssociatedSymptoms(medicineId, symptomId);
+            return result;
+        } catch (error) {
+            logger.error('Error in getDetailAssociatedSymptoms service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async searchAssociatedSymptoms(search, page = 1, limit = 10) {
+        try {
+            if (!search || typeof search !== 'string' || search.trim().length === 0) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: 'Invalid search term',
+                    data: null
+                };
+            }
+
+            const pageNum = Math.max(1, parseInt(page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+
+            const result = await mSymptom.searchAssociatedSymptoms(search.trim(), pageNum, limitNum);
+            return result;
+        } catch (error) {
+            logger.error('Error in searchAssociatedSymptoms service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
     }
 };

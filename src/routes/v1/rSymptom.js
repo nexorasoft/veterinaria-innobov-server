@@ -32,4 +32,37 @@ router.get('/search',
     cSymptom.searchSymptomsByName
 );
 
+router.get('/medicine/associated',
+    authenticateUser,
+    roleMiddleware(['admin', 'doctor', 'cashier']),
+    cSymptom.getMedicineSymptoms
+);
+
+router.put('/medicine/associated/:medicineId/:symptomId',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    auditLog('PUT', 'ASSOCIATE_SYMPTOM_MEDICINE', 'medicine_symptom'),
+    cSymptom.updateAssociatedSymptomEffectiveness
+);
+
+router.delete('/medicine/associated/:medicineId/:symptomId',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    auditLog('DELETE', 'ASSOCIATE_SYMPTOM_MEDICINE', 'medicine_symptom'),
+    cSymptom.deleteAssociatedSymptom
+);
+
+router.get('/medicine/associated/:medicineId/:symptomId',
+    authenticateUser,
+    roleMiddleware(['admin', 'doctor', 'cashier']),
+    auditLog('GET', 'ASSOCIATE_SYMPTOM_MEDICINE', 'medicine_symptom'),
+    cSymptom.getDetailAssociatedSymptoms
+);
+
+router.get('/medicine/associated/search',
+    authenticateUser,
+    roleMiddleware(['admin', 'doctor', 'cashier']),
+    cSymptom.searchAssociatedSymptoms
+);
+
 export default router;
