@@ -7,8 +7,8 @@ import { uImage } from "../utils/image.js";
 export const sPet = {
     async getAllPets(filters) {
         try {
-            const pageNum = Math.max(1, parseInt(filters.page)) || 1;
-            const limitNum = Math.max(1, Math.min(100, parseInt(filters.limit))) || 10;
+            const pageNum = Math.max(1, parseInt(filters.page));
+            const limitNum = Math.max(1, Math.min(100, parseInt(filters.limit)));
             const search = filters.search || '';
 
             const modelResponse = await mPet.getAllPets({ search, page: pageNum, limit: limitNum });

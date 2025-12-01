@@ -5,48 +5,69 @@ export const mPet = {
     async getAllPets(filters) {
         try {
             const { search, page = 1, limit = 10 } = filters;
-            const pageNum = Math.max(1, parseInt(page));
-            const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+            const pageNum = Math.max(1, parseInt(page) || 1);
+            const limitNum = Math.max(1, parseInt(limit) || 10);
             const offset = (pageNum - 1) * limitNum;
 
-            let whereClause = '';
             const args = [];
+            const conditions = [];
 
+            // Filtro de búsqueda
             if (search) {
-                whereClause += `
-                    AND (
-                        p.name LIKE '%' || ? || '%' OR
-                        p.microchip LIKE '%' || ? || '%' OR
-                        c.name LIKE '%' || ? || '%' OR
-                        c.dni LIKE '%' || ? || '%'
-                    )
-                `;
+                conditions.push(`(
+                p.name LIKE '%' || ? || '%' OR
+                p.microchip LIKE '%' || ? || '%' OR
+                c.name LIKE '%' || ? || '%' OR
+                c.dni LIKE '%' || ? || '%'
+            )`);
                 args.push(search, search, search, search);
             }
 
+            // Construir WHERE clause
+            const whereClause = conditions.length > 0
+                ? "WHERE " + conditions.join(" AND ")
+                : "";
+
             const query = `
-                SELECT 
-                    p.id, p.name, s.name as species_name, 
-                    c.name as owner_name, c.dni as owner_dni,
-                    COUNT(*) OVER() as total_count, p.active
-                FROM pets p
-                JOIN clients c ON p.client_id = c.id
-                LEFT JOIN species s ON p.species_id = s.id
-                ${whereClause}
-                ORDER BY p.name DESC
-                LIMIT ? OFFSET ?
-            `;
+            SELECT 
+                p.id, p.name, s.name as species_name, 
+                c.name as owner_name, c.dni as owner_dni,
+                p.birth_date, p.sex,
+                COUNT(*) OVER() as total_count, p.active
+            FROM pets p
+            JOIN clients c ON p.client_id = c.id
+            LEFT JOIN species s ON p.species_id = s.id
+            ${whereClause}
+            ORDER BY p.name DESC
+            LIMIT ? OFFSET ?
+        `;
+
+            console.log('Executing query:', query);
+            console.log('With args:', args.concat([limitNum, offset]));
 
             args.push(limitNum, offset);
 
-            const result = await turso.execute(query, args);
+            const result = await turso.execute({
+                sql: query,
+                args: args
+            });
 
             if (result.rows.length === 0) {
                 return {
-                    success: false,
-                    code: 404,
+                    success: true,
+                    code: 200,
                     message: 'No pets found',
-                    data: null
+                    data: {
+                        pets: [],
+                        pagination: {
+                            currentPage: pageNum,
+                            totalPages: 0,
+                            totalItems: 0,
+                            itemsPerPage: limitNum,
+                            hasNextPage: false,
+                            hasPreviousPage: false
+                        }
+                    }
                 };
             }
 
@@ -80,7 +101,6 @@ export const mPet = {
             };
         }
     },
-
     async getPetProfile(petId) {
         try {
             const query = `
