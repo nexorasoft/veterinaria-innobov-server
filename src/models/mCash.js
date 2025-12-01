@@ -227,23 +227,47 @@ export const mCash = {
                     s.start_amount,
                     s.status,
                     
-                    -- 1. CALCULO DE EFECTIVO (CASH)
+                    -- 1. CÁLCULO DE EFECTIVO FÍSICO (NETO)
+                    -- Suma: Si el método es explícitamente EFECTIVO
+                    -- O si es un movimiento manual sin método definido y el concepto NO dice 'TRANSFERENCIA'
                     COALESCE(SUM(CASE 
-                        WHEN COALESCE(sa.payment_method, pu.payment_method, 'EFECTIVO') = 'EFECTIVO' THEN
+                        WHEN 
+                            UPPER(COALESCE(sa.payment_method, pu.payment_method, '')) = 'EFECTIVO' 
+                            OR (
+                                sa.id IS NULL AND pu.id IS NULL 
+                                AND UPPER(m.concept) NOT LIKE '%TRANSFERENCIA%'
+                            )
+                        THEN
                             CASE WHEN m.type = 'INGRESO' THEN m.amount ELSE -m.amount END
                         ELSE 0 
                     END), 0) as cash_net_movements,
 
-                    -- 2. CALCULO DE TRANSFERENCIA
+                    -- 2. TRANSFERENCIAS - INGRESOS (Ventas + Cobros CxC)
                     COALESCE(SUM(CASE 
-                        WHEN COALESCE(sa.payment_method, pu.payment_method, 'EFECTIVO') = 'TRANSFERENCIA' THEN
-                            CASE WHEN m.type = 'INGRESO' THEN m.amount ELSE -m.amount END
+                        WHEN 
+                            (UPPER(COALESCE(sa.payment_method, pu.payment_method, '')) = 'TRANSFERENCIA' 
+                             OR UPPER(m.concept) LIKE '%TRANSFERENCIA%')
+                            AND m.type = 'INGRESO'
+                        THEN m.amount 
                         ELSE 0 
-                    END), 0) as transfer_net_movements,
+                    END), 0) as transfer_income,
 
-                    -- 3. CALCULO DE OTROS (TARJETAS, CHEQUES, ETC) - Opcional pero útil para cuadrar
+                    -- 3. TRANSFERENCIAS - EGRESOS (Compras + Pagos CxP)
                     COALESCE(SUM(CASE 
-                        WHEN COALESCE(sa.payment_method, pu.payment_method, 'EFECTIVO') NOT IN ('EFECTIVO', 'TRANSFERENCIA') THEN
+                        WHEN 
+                            (UPPER(COALESCE(sa.payment_method, pu.payment_method, '')) = 'TRANSFERENCIA' 
+                             OR UPPER(m.concept) LIKE '%TRANSFERENCIA%')
+                            AND m.type = 'EGRESO'
+                        THEN m.amount 
+                        ELSE 0 
+                    END), 0) as transfer_expense,
+
+                    -- 4. OTROS (Tarjetas, Cheques, etc - NETO)
+                    COALESCE(SUM(CASE 
+                        WHEN 
+                            sa.payment_method IS NOT NULL 
+                            AND UPPER(sa.payment_method) NOT IN ('EFECTIVO', 'TRANSFERENCIA')
+                        THEN
                             CASE WHEN m.type = 'INGRESO' THEN m.amount ELSE -m.amount END
                         ELSE 0 
                     END), 0) as other_net_movements
@@ -261,26 +285,59 @@ export const mCash = {
                 args: [cashShiftId]
             });
 
+            // CASO: Turno no encontrado (o sin movimientos si el JOIN falla, aunque el LEFT JOIN debería traer la fila del turno)
             if (result.rows.length === 0) {
-                logger.warn('Cash shift not found', { cashShiftId });
+                // Intentamos buscar el turno solo para confirmar que existe
+                const checkShift = await turso.execute({
+                    sql: "SELECT start_amount, status FROM cash_shifts WHERE id = ?",
+                    args: [cashShiftId]
+                });
+
+                if (checkShift.rows.length === 0) {
+                    return { success: false, code: 404, message: 'Turno de caja no encontrado', data: null };
+                }
+
+                // Si existe pero no tiene movimientos (recién abierto)
+                const baseData = checkShift.rows[0];
                 return {
-                    success: false,
-                    code: 404,
-                    message: 'Turno de caja no encontrado',
-                    data: null
+                    success: true,
+                    code: 200,
+                    message: 'Cálculo realizado (Sin movimientos)',
+                    data: {
+                        status: baseData.status,
+                        totals: {
+                            expected_cash: Number(baseData.start_amount),
+                            bank_activity: { income: 0, expense: 0, balance: 0 },
+                            expected_others: 0,
+                            total_calculated: Number(baseData.start_amount)
+                        },
+                        details: {
+                            start_amount: Number(baseData.start_amount),
+                            net_cash_movements: 0
+                        }
+                    }
                 };
             }
 
             const row = result.rows[0];
             const startAmount = Number(row.start_amount);
 
+            // --- CÁLCULOS MATEMÁTICOS FINALES ---
+
+            // A. DINERO EN CAJA (Lo que el cajero debe contar con la mano)
             const expectedCash = startAmount + Number(row.cash_net_movements);
 
-            const expectedTransfer = Number(row.transfer_net_movements);
+            // B. DINERO EN BANCOS (Informativo para cuadrar con la APP del Banco)
+            const transferIncome = Number(row.transfer_income);
+            const transferExpense = Number(row.transfer_expense);
+            const transferNetBalance = transferIncome - transferExpense;
 
+            // C. OTROS MEDIOS
             const expectedOthers = Number(row.other_net_movements);
 
-            const totalCalculated = expectedCash + expectedTransfer + expectedOthers;
+            // D. TOTAL GLOBAL (Patrimonio movido en el turno)
+            // Suma el efectivo físico + el saldo digital generado
+            const totalCalculated = expectedCash + transferNetBalance + expectedOthers;
 
             return {
                 success: true,
@@ -289,18 +346,28 @@ export const mCash = {
                 data: {
                     status: row.status,
                     totals: {
-                        expected_cash: expectedCash,
-                        expected_transfer: expectedTransfer,
-                        expected_others: expectedOthers,
-                        total_calculated: totalCalculated
+                        // El dato más importante para el cajero
+                        expected_cash: parseFloat(expectedCash.toFixed(2)),
+
+                        // Desglose bancario
+                        bank_activity: {
+                            income: parseFloat(transferIncome.toFixed(2)),
+                            expense: parseFloat(transferExpense.toFixed(2)),
+                            net_balance: parseFloat(transferNetBalance.toFixed(2))
+                        },
+
+                        expected_others: parseFloat(expectedOthers.toFixed(2)),
+
+                        // Suma total
+                        total_calculated: parseFloat(totalCalculated.toFixed(2))
                     },
                     details: {
-                        start_amount: startAmount,
-                        net_cash_movements: Number(row.cash_net_movements),
-                        net_transfer_movements: Number(row.transfer_net_movements)
+                        start_amount: parseFloat(startAmount.toFixed(2)),
+                        net_cash_movements: parseFloat(Number(row.cash_net_movements).toFixed(2))
                     }
                 }
             };
+
         } catch (error) {
             logger.error('Error calculating cash shift expectations', { error: error.message });
             return {
