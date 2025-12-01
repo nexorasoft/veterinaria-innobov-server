@@ -143,13 +143,15 @@ export const mPurchase = {
                 due_date,
                 notes,
                 validatedItems,
-                newProducts,  // ✅ Agregar newProducts
-                supplierName
+                newProducts,
+                supplierName,
+                cashMovementId,  
+                accountPayableId,
+                cashShiftId     
             } = transactionData;
 
             const batchStatements = [];
 
-            // ✅ PASO 1: Insertar productos nuevos PRIMERO (si existen)
             if (newProducts && newProducts.length > 0) {
                 const insertProductQuery = `
                     INSERT INTO products (
@@ -174,8 +176,8 @@ export const mPurchase = {
                             product.purchase_price,
                             product.sale_price,
                             product.wholesale_price || null,
-                            product.stock || 0,
-                            product.min_stock || 0,
+                            product.stock,
+                            product.min_stock || 1,
                             product.max_stock || null,
                             product.unit,
                             product.is_medicine || 0,
@@ -184,42 +186,30 @@ export const mPurchase = {
                             product.concentration || null,
                             product.expiration_date || null,
                             product.batch_number || null,
-                            product.active !== undefined ? product.active : 1,
+                            1,
                             product.taxable !== undefined ? product.taxable : 1
                         ]
                     });
                 }
-
-                logger.info(`Prepared ${newProducts.length} new products for insertion`, { purchaseId });
             }
 
-            // ✅ PASO 2: Insertar la compra
             const insertPurchaseQuery = `
                 INSERT INTO purchases (
                     id, supplier_id, user_id, subtotal, tax, 
                     discount, total, payment_method, status, 
-                    due_date, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    due_date, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-5 hours'))
             `;
 
             batchStatements.push({
                 sql: insertPurchaseQuery,
                 args: [
-                    purchaseId,
-                    supplier_id,
-                    user_id,
-                    subtotal,
-                    tax,
-                    discount || 0,
-                    total,
-                    payment_method,
-                    status,
-                    due_date || null,
-                    notes || null
+                    purchaseId, supplier_id, user_id, subtotal, tax,
+                    discount || 0, total, payment_method, status,
+                    due_date || null, notes || null
                 ]
             });
 
-            // ✅ PASO 3: Insertar detalles de compra y actualizar stock
             const insertDetailQuery = `
                 INSERT INTO purchase_details (
                     id, purchase_id, product_id, quantity, 
@@ -231,7 +221,7 @@ export const mPurchase = {
                 UPDATE products 
                 SET 
                     stock = stock + ?,
-                    purchase_price = ?,
+                    purchase_price = ?, -- Actualizamos costo al nuevo precio
                     expiration_date = COALESCE(?, expiration_date),
                     batch_number = COALESCE(?, batch_number),
                     updated_at = datetime('now', '-5 hours')
@@ -239,23 +229,14 @@ export const mPurchase = {
             `;
 
             for (const item of validatedItems) {
-                // Insertar detalle de compra
                 batchStatements.push({
                     sql: insertDetailQuery,
                     args: [
-                        item.detail_id,
-                        purchaseId,
-                        item.product_id,
-                        item.quantity,
-                        item.price,
-                        item.subtotal,
-                        item.expiration_date || null,
-                        item.batch_number || null
+                        item.detail_id, purchaseId, item.product_id, item.quantity,
+                        item.price, item.subtotal, item.expiration_date || null, item.batch_number || null
                     ]
                 });
 
-                // ✅ Solo actualizar stock si NO es un producto nuevo
-                // Los productos nuevos ya tienen su stock inicial en la inserción
                 if (!item.is_new_product) {
                     batchStatements.push({
                         sql: updateProductStockQuery,
@@ -270,31 +251,38 @@ export const mPurchase = {
                 }
             }
 
+
             if (status === 'PAGADA') {
+                const finalShiftId = (payment_method === 'EFECTIVO') ? cashShiftId : null;
+
                 batchStatements.push({
                     sql: `
                         INSERT INTO cash_movements (
-                        id, user_id, type, category, concept, amount, purchase_id
-                        ) VALUES (?, ?, 'EGRESO', 'COMPRA', ?, ?, ?)
+                            id, user_id, type, category, concept, 
+                            amount, purchase_id, cash_shift_id, created_at
+                        ) VALUES (?, ?, 'EGRESO', 'COMPRA', ?, ?, ?, ?, datetime('now', '-5 hours'))
                     `,
                     args: [
-                        transactionData.cashMovementId,
+                        cashMovementId,
                         user_id,
-                        `Compra #${purchaseId} - ${supplierName}`,
+                        `Compra a ${supplierName} (${payment_method})`,
                         total,
-                        purchaseId
+                        purchaseId,
+                        finalShiftId
                     ]
                 });
-            } else if (status === 'PENDIENTE') {
+            }
+
+            else if (status === 'PENDIENTE' || payment_method === 'CREDITO') {
                 batchStatements.push({
                     sql: `
                         INSERT INTO accounts_payable (
-                        id, supplier_id, purchase_id, amount, 
-                        amount_paid, balance, due_date, status
-                        ) VALUES (?, ?, ?, ?, 0, ?, ?, 'PENDIENTE')
+                            id, supplier_id, purchase_id, amount, 
+                            amount_paid, balance, due_date, status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, 0, ?, ?, 'PENDIENTE', datetime('now', '-5 hours'), datetime('now', '-5 hours'))
                     `,
                     args: [
-                        transactionData.accountPayableId,
+                        accountPayableId,
                         supplier_id,
                         purchaseId,
                         total,
@@ -310,18 +298,16 @@ export const mPurchase = {
             return {
                 success: true,
                 code: 201,
-                message: 'Purchase transaction created successfully',
+                message: 'Compra registrada correctamente',
                 data: { purchaseId }
             };
+
         } catch (error) {
-            logger.error('Error creating purchase transaction', {
-                error: error.message,
-                stack: error.stack
-            });
+            logger.error('Error creating purchase transaction', { error: error.message });
             return {
                 success: false,
                 code: 500,
-                message: 'Error creating purchase transaction',
+                message: 'Error al registrar la compra',
                 data: null
             };
         }

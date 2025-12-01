@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { mPurchase } from "../models/mPurchase.js";
 import { hPurchase } from '../helpers/hPurchase.js';
-import { mNotification } from "../models/mNotification.js";
+import { mCash } from "../models/mCash.js";
 import { logger } from "../utils/logger.js";
 
 export const sPurchase = {
@@ -9,11 +9,7 @@ export const sPurchase = {
         try {
             const validation = hPurchase.validatePurchaseData(purchaseData);
             if (!validation.valid) {
-                return {
-                    success: false,
-                    code: 400,
-                    message: validation.error
-                };
+                return { success: false, code: 400, message: validation.error };
             }
 
             const {
@@ -28,11 +24,22 @@ export const sPurchase = {
 
             const supplier = await mPurchase.getSupplierById(supplier_id);
             if (!supplier) {
-                return {
-                    success: false,
-                    code: 404,
-                    message: 'Proveedor no encontrado o inactivo'
-                };
+                return { success: false, code: 404, message: 'Proveedor no encontrado o inactivo' };
+            }
+
+            let cashShiftId = null;
+
+            if (payment_method === 'EFECTIVO' && status === 'PAGADA') {
+                const shiftResult = await mCash.getOpenShiftsByUser(userId);
+
+                if (!shiftResult.success || !shiftResult.data) {
+                    return {
+                        success: false,
+                        code: 400,
+                        message: 'Error: Para pagar en EFECTIVO necesitas tener una caja abierta.'
+                    };
+                }
+                cashShiftId = shiftResult.data.shift_id;
             }
 
             const { validatedItems, newProducts } = await hPurchase.validateAndEnrichItems(items, supplier_id);
@@ -53,17 +60,22 @@ export const sPurchase = {
                 due_date: due_date || null,
                 notes: notes || null,
                 validatedItems,
-                newProducts, // ✅ Agregar productos nuevos a la transacción
+                newProducts,
                 supplierName: supplier.name,
+
                 cashMovementId: uuidv4(),
                 accountPayableId: uuidv4(),
-                auditLogId: uuidv4()
+                auditLogId: uuidv4(),
+
+                cashShiftId: cashShiftId
             };
 
             const result = await mPurchase.createPurchaseTransaction(transactionData);
 
             if (result.success) {
-                await hPurchase.createNotifications(validatedItems);
+                hPurchase.createNotifications(validatedItems).catch(err =>
+                    logger.error('Error background notifications', err)
+                );
             }
 
             return result;

@@ -17,7 +17,6 @@ export const hPurchase = {
         for (const item of items) {
             const { product_id, new_product, quantity, price } = item;
 
-            // Si no hay product_id, debe existir new_product
             if (!product_id && !new_product) {
                 return {
                     valid: false,
@@ -25,7 +24,6 @@ export const hPurchase = {
                 };
             }
 
-            // Validar datos del nuevo producto si existe
             if (!product_id && new_product) {
                 const { name, category_id, purchase_price, sale_price, min_stock, unit } = new_product;
                 
@@ -82,14 +80,12 @@ export const hPurchase = {
             let currentStock = 0;
             let minStock = 0;
 
-            // Caso 1: Producto nuevo (product_id es null y existe new_product)
             if (!product_id && new_product) {
                 finalProductId = uuidv4();
                 productName = new_product.name;
-                currentStock = quantity; // ✅ Stock inicial = cantidad comprada
+                currentStock = quantity;
                 minStock = new_product.min_stock || 0;
 
-                // Preparar datos del nuevo producto para inserción en BD
                 newProducts.push({
                     id: finalProductId,
                     category_id: new_product.category_id,
@@ -100,7 +96,7 @@ export const hPurchase = {
                     purchase_price: new_product.purchase_price,
                     sale_price: new_product.sale_price,
                     wholesale_price: new_product.wholesale_price || null,
-                    stock: quantity, // ✅ Stock inicial = cantidad comprada (NO de new_product)
+                    stock: quantity,
                     min_stock: new_product.min_stock || 0,
                     max_stock: new_product.max_stock || null,
                     unit: new_product.unit,
@@ -114,7 +110,6 @@ export const hPurchase = {
                     taxable: new_product.taxable !== undefined ? new_product.taxable : 1
                 });
             } 
-            // Caso 2: Producto existente
             else if (product_id) {
                 const product = await mPurchase.getProductById(product_id);
 
