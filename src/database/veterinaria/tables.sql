@@ -493,7 +493,7 @@ CREATE TABLE consultations (
     observations TEXT,
     next_visit DATE,
     next_visit_reason TEXT,
-    attachments TEXT,
+    status TEXT CHECK(status IN ('EN_CURSO', 'FINALIZADA', 'ANULADA')) DEFAULT 'EN_CURSO';
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
     updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
     FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE RESTRICT,
@@ -570,8 +570,9 @@ CREATE TABLE accounts_payable (
 CREATE TABLE cash_movements (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
+    cash_shift_id TEXT,
     type TEXT CHECK(type IN ('INGRESO', 'EGRESO')) NOT NULL,
-    category TEXT CHECK(category IN ('VENTA', 'COMPRA', 'PAGO_SERVICIO', 'PAGO_SALARIO', 'GASTO_OPERATIVO', 'OTRO')),
+    category TEXT CHECK(category IN ('VENTA', 'COMPRA', 'PAGO_SERVICIO', 'PAGO_SALARIO', 'GASTO_OPERATIVO', 'COBRO_DEUDA','OTRO')),
     concept TEXT NOT NULL,
     amount REAL NOT NULL,
     sale_id TEXT,
@@ -581,7 +582,8 @@ CREATE TABLE cash_movements (
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL,
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL,
+    FOREIGN KEY (cash_shift_id) REFERENCES cash_shifts(id) ON DELETE SET NULL
 );
 
 -- ============================================
