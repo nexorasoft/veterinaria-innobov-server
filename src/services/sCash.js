@@ -1,5 +1,6 @@
 import { mCash } from "../models/mCash.js";
 import { logger } from "../utils/logger.js";
+import { hSend } from "../helpers/hSend.js";
 import { getCurrentDateTime } from "../utils/methods.js";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -51,7 +52,7 @@ export const sCash = {
         }
     },
 
-    async registerCashShift(shiftData) {
+    async registerCashShift(req, shiftData) {
         try {
             const requiredFields = ['cash_register_id', 'status', 'user_id'];
             const missingFields = requiredFields.filter(field => !shiftData[field]);
@@ -128,11 +129,15 @@ export const sCash = {
                 cleanData.end_time = getCurrentDateTime();
                 cleanData.expected_amount = Number(shiftData.expected_amount);
                 cleanData.actual_amount = Number(shiftData.actual_amount);
-
                 cleanData.difference = cleanData.actual_amount - cleanData.expected_amount;
             }
 
             const result = await mCash.registerCashShift(cleanData);
+
+            hSend.cashRegistrNotification(req, cleanData).catch(err => {
+                console.error('Alerta: El turno se guardó, pero el correo falló:', err);
+            });
+
             return result;
         } catch (error) {
             logger.error('Error in registerCashShift service', error);

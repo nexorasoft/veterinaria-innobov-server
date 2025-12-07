@@ -15,5 +15,6 @@ export const {
     CLOUD_NAME,
     CLOUD_API_KEY,
     CLOUD_API_SECRET,
-    RUC_DNI_API_URL
+    RUC_DNI_API_URL,
+    BREVO_TOKEN
 } = process.env;

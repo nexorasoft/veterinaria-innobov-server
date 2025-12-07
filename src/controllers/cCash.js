@@ -57,7 +57,7 @@ export const cCash = {
                 notes
             };
 
-            const result = await sCash.registerCashShift(shiftPayload);
+            const result = await sCash.registerCashShift(req, shiftPayload);
             return res.status(result.code).json(result);
         } catch (error) {
             console.error('Error in cCash.registerCashShift:', error);
