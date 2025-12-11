@@ -45,6 +45,17 @@ export const sSales = {
                 }
             }
 
+            if (!client_id && client_data && client_data.identification) {
+                const sriCode = hSales.inferSriCode(client_data.identification);
+                const identificationTypeId = await mClient.getIdentificationTypeIdByCode(sriCode);
+                
+                if (!identificationTypeId) {
+                    throw new Error(`Error de configuración: No existe el tipo de identificación SRI '${sriCode}' en el sistema.`);
+                }
+
+                client_data.identification_type_id = identificationTypeId;
+            }
+
             const taxPercentage = await mSystem.getTaxPercentage();
             const taxRate = taxPercentage / 100;
             const divisor = 1 + taxRate;
@@ -75,14 +86,11 @@ export const sSales = {
                 return {
                     ...item,
                     sale_detail_id: uuidv4(),
-
                     quantity: qty,
                     price: price,
-
                     subtotal: parseFloat(itemBase.toFixed(4)),
                     tax_amount: parseFloat(itemTax.toFixed(4)),
                     total_line: parseFloat((itemBase + itemTax).toFixed(2)),
-
                     item_type: item.service_id ? 'SERVICIO' : 'PRODUCTO'
                 };
             });
@@ -92,13 +100,13 @@ export const sSales = {
 
             const isConsumidorFinal =
                 (saleData.client_id === 'consumer_final_default') ||
-                (saleData.client_data && saleData.client_data.dni === '9999999999999');
+                (saleData.client_data && saleData.client_data.identification === '9999999999999');
 
             if (isConsumidorFinal && total > 50) {
                 return {
                     success: false,
                     code: 400,
-                    message: `The amount ($${total.toFixed(2)}) exceeds the allowed limit for Final Consumer ($50.00). You must register the customer’s information.`,
+                    message: `El monto ($${total.toFixed(2)}) excede el límite para Consumidor Final ($50.00). Debe registrar los datos del cliente.`,
                     data: null
                 };
             }
@@ -109,6 +117,7 @@ export const sSales = {
                 user_id: userId,
 
                 client_id: client_id || null,
+
                 client_data: client_data || null,
 
                 payment_method: payment_method,
@@ -121,13 +130,20 @@ export const sSales = {
             };
 
             const result = await mSales.registerSale(salePayload);
+
+            if (result.success) {
+                hSales.checkStockAndNotify(processedItems).catch(err =>
+                    logger.error('Background Notification Error', err)
+                );
+            }
+
             return result;
         } catch (error) {
             logger.error('sSales.registerSale: ' + error.message);
             return {
                 success: false,
                 code: 500,
-                message: 'An error occurred while registering the sale.',
+                message: 'Ocurrió un error registrando la venta: ' + error.message,
                 data: null
             };
         }
@@ -157,7 +173,6 @@ export const sSales = {
             }
 
             const externalData = await hSales.getPersonByIdentification(identification);
-            console.log('External data retrieved:', externalData); // Debug log
             if (externalData) {
                 return {
                     success: true,

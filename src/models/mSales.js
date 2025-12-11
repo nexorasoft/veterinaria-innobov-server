@@ -81,8 +81,8 @@ export const mSales = {
                 const c = saleData.client_data;
 
                 const checkClient = await tx.execute({
-                    sql: "SELECT id FROM clients WHERE dni = ?",
-                    args: [c.dni]
+                    sql: "SELECT id FROM clients WHERE identification = ?",
+                    args: [c.identification]
                 });
 
                 if (checkClient.rows.length > 0) {
@@ -90,14 +90,15 @@ export const mSales = {
                 } else {
                     finalClientId = uuidv4();
                     const insertClientSql = `
-                        INSERT INTO clients (id, dni, name, phone, email, address, active, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now', '-5 hours'));
+                        INSERT INTO clients (id, identification_type_id, identification, name, phone, email, address, active, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now', '-5 hours'));
                     `;
                     await tx.execute({
                         sql: insertClientSql,
                         args: [
                             finalClientId,
-                            c.dni,
+                            c.identification_type_id,
+                            c.identification,
                             c.name.toUpperCase(),
                             c.phone || null,
                             c.email || null,
@@ -271,6 +272,8 @@ export const mSales = {
             };
 
         } catch (error) {
+
+            console.log('Error registering sale:', error);
             await tx.rollback();
 
             if (error.message.includes('Stock insuficiente')) {

@@ -158,5 +158,20 @@ export const cClient = {
                 data: null
             });
         }
+    },
+
+    async getIdentificationTypes(req, res) {
+        try {
+            const serviceResponse = await sClient.getIdentificationTypes();
+            return res.status(serviceResponse.code).json(serviceResponse);
+        } catch (error) {
+            logger.error(`cClient.getIdentificationTypes - Error: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };

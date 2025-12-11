@@ -8,8 +8,7 @@ export const hSend = {
     async cashRegistrNotification(req, data) {
         try {
             const info = await mSend.cashRegisterNotification(req, data);
-            console.log('Información para notificación de caja obtenida:', info);
-
+            
             let startTime = null;
             let endTime = null;
             const isOpen = data.status === 'ABIERTA';

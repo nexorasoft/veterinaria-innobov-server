@@ -783,5 +783,60 @@ export const mProduct = {
                 data: null
             };
         }
+    },
+
+    async getExpiringProducts(days = 30) {
+        try {
+            const query = `
+                SELECT
+                    p.id,
+                    p.name,
+                    p.code,
+                    p.stock,
+                    p.min_stock,
+                    p.expiration_date,
+                    p.batch_number,
+                    p.is_medicine,
+                    CAST(
+                        julianday(p.expiration_date) - julianday(date('now', '-5 hours'))
+                    AS INTEGER
+                    ) AS days_to_expire
+                FROM products p
+                WHERE
+                    p.active = 1
+                    AND p.expiration_date IS NOT NULL
+                    AND date(p.expiration_date)
+                        <= date('now', '+${days} days', '-5 hours')
+                ORDER BY
+                    date(p.expiration_date) ASC;
+            `;
+
+            const result = await turso.execute(query);
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No expiring products found within the specified timeframe.',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Productos próximos a caducar obtenidos correctamente.',
+                data: result.rows
+            };
+
+        } catch (error) {
+            logger.error('mProduct.getExpiringProducts:', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Error al obtener productos próximos a caducar.',
+                data: null
+            };
+        }
     }
 };

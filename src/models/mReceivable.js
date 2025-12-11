@@ -15,9 +15,8 @@ export const mReceivable = {
             const offset = (pageNum - 1) * limitNum;
 
             const args = [];
-            const conditions = []; // Cambiado a array de condiciones
+            const conditions = [];
 
-            // Filtro de estado
             if (status && status !== 'TODOS') {
                 if (status === 'PENDIENTE') {
                     conditions.push("ar.status IN ('PENDIENTE', 'VENCIDO')");
@@ -32,67 +31,63 @@ export const mReceivable = {
                 }
             }
 
-            // Filtro de búsqueda
             if (searchTerm) {
-                conditions.push("(c.name LIKE '%' || ? || '%' OR c.dni LIKE '%' || ? || '%')");
+                conditions.push("(c.name LIKE '%' || ? || '%' OR c.identification LIKE '%' || ? || '%')");
                 args.push(searchTerm, searchTerm);
             }
 
-            // Filtro de fecha inicio - CORREGIDO
             if (start_date) {
                 conditions.push("DATE(ar.created_at) >= DATE(?)");
                 args.push(start_date);
             }
 
-            // Filtro de fecha fin - CORREGIDO
             if (end_date) {
                 conditions.push("DATE(ar.created_at) <= DATE(?)");
                 args.push(end_date);
             }
 
-            // Construir WHERE clause
             const whereClause = conditions.length > 0
                 ? "WHERE " + conditions.join(" AND ")
                 : "";
 
             const query = `
-            SELECT 
-                ar.id,
-                ar.created_at as emission_date,
-                ar.due_date,
-                c.id as client_id,
-                c.name as client_name,
-                c.dni as client_dni,
-                ar.amount as total_original,
-                ar.balance as current_debt,
-                ar.status,
-                CASE 
-                    WHEN ar.due_date IS NULL THEN NULL
-                    WHEN DATE(ar.due_date) < DATE('now') 
-                    THEN CAST(julianday('now') - julianday(ar.due_date) AS INTEGER)
-                    ELSE 0
-                END as days_overdue,
-                CASE 
-                    WHEN ar.due_date IS NULL THEN NULL
-                    WHEN DATE(ar.due_date) >= DATE('now') 
-                    THEN CAST(julianday(ar.due_date) - julianday('now') AS INTEGER)
-                    ELSE 0
-                END as days_until_due,
-                COUNT(*) OVER() as total_count
-            FROM accounts_receivable ar
-            JOIN clients c ON ar.client_id = c.id
-            ${whereClause}
-            ORDER BY 
-                CASE ar.status
-                    WHEN 'VENCIDO' THEN 1
-                    WHEN 'PAGADO_PARCIAL' THEN 2
-                    WHEN 'PENDIENTE' THEN 3
-                    WHEN 'PAGADO' THEN 4
-                END,
-                ar.due_date ASC
-            LIMIT ? OFFSET ?;
-        `;
-        
+                SELECT 
+                    ar.id,
+                    ar.created_at as emission_date,
+                    ar.due_date,
+                    c.id as client_id,
+                    c.name as client_name,
+                    c.identification as client_dni,
+                    ar.amount as total_original,
+                    ar.balance as current_debt,
+                    ar.status,
+                    CASE 
+                        WHEN ar.due_date IS NULL THEN NULL
+                        WHEN DATE(ar.due_date) < DATE('now') 
+                        THEN CAST(julianday('now') - julianday(ar.due_date) AS INTEGER)
+                        ELSE 0
+                    END as days_overdue,
+                    CASE 
+                        WHEN ar.due_date IS NULL THEN NULL
+                        WHEN DATE(ar.due_date) >= DATE('now') 
+                        THEN CAST(julianday(ar.due_date) - julianday('now') AS INTEGER)
+                        ELSE 0
+                    END as days_until_due,
+                    COUNT(*) OVER() as total_count
+                FROM accounts_receivable ar
+                JOIN clients c ON ar.client_id = c.id
+                ${whereClause}
+                ORDER BY 
+                    CASE ar.status
+                        WHEN 'VENCIDO' THEN 1
+                        WHEN 'PAGADO_PARCIAL' THEN 2
+                        WHEN 'PENDIENTE' THEN 3
+                        WHEN 'PAGADO' THEN 4
+                    END,
+                    ar.due_date ASC
+                LIMIT ? OFFSET ?;
+            `;
+
             args.push(limitNum, offset);
 
             const result = await turso.execute({
@@ -299,7 +294,7 @@ export const mReceivable = {
                     -- Datos del Cliente
                     c.id as client_id,
                     c.name as client_name,
-                    c.dni as client_dni,
+                    c.identification as client_dni,
                     c.phone as client_phone,
                     -- Datos de la Venta Origen
                     s.id as sale_id,
@@ -332,4 +327,43 @@ export const mReceivable = {
             return { success: false, code: 500, message: 'Internal error', data: null };
         }
     },
+
+    async getUpcomingReceivables(days) {
+        try {
+            const query = `
+                SELECT *
+                FROM accounts_receivable
+                WHERE
+                    balance > 0
+                    AND due_date BETWEEN date('now') 
+                    AND date('now', '+' || ? || ' days');
+            `;
+
+            const result = await turso.execute({ sql: query, args: [days] });
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No upcoming receivables found',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Upcoming receivables fetched successfully',
+                data: result.rows
+            };
+        } catch (error) {
+            logger.error('Error fetching upcoming receivables', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal error',
+                data: null
+            };
+        }
+    }
 };

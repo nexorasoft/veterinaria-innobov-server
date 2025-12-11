@@ -59,5 +59,32 @@ export const mSend = {
             logger.error('Error obteniendo información para notificación de caja', error);
             return null;
         }
+    },
+
+    async getIdsByRoles(rolesArray) {
+        try {
+            if (!rolesArray || rolesArray.length === 0) {
+                return [];
+            }
+
+            const placeholders = rolesArray.map(() => '?').join(',');
+
+            const query = `
+                SELECT id 
+                FROM users 
+                WHERE role_id IN (${placeholders}) 
+                AND status = 1;
+            `;
+
+            const result = await turso.execute({
+                sql: query,
+                args: rolesArray
+            });
+
+            return result.rows.map(row => row.id);
+        } catch (error) {
+            logger.error('Error obteniendo IDs de usuarios por roles', error);
+            return null;
+        }
     }
 };

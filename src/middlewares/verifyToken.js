@@ -18,7 +18,6 @@ export default async function authenticateUser(req, res, next) {
         }
 
         const session = await mAuth.verifySessionToken(token);
-        console.log('Session retrieved:', session);
         if (!session || session === null) {
             return res.status(401).json({
                 error: 'Unauthorized',

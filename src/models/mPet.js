@@ -18,7 +18,7 @@ export const mPet = {
                 p.name LIKE '%' || ? || '%' OR
                 p.microchip LIKE '%' || ? || '%' OR
                 c.name LIKE '%' || ? || '%' OR
-                c.dni LIKE '%' || ? || '%'
+                c.identification LIKE '%' || ? || '%'
             )`);
                 args.push(search, search, search, search);
             }
@@ -31,7 +31,7 @@ export const mPet = {
             const query = `
             SELECT 
                 p.id, p.name, s.name as species_name, 
-                c.name as owner_name, c.dni as owner_dni,
+                c.name as owner_name, c.identification as owner_dni,
                 p.birth_date, p.sex,
                 COUNT(*) OVER() as total_count, p.active
             FROM pets p
@@ -111,7 +111,7 @@ export const mPet = {
                     c.name as owner_name,
                     c.phone as owner_phone,
                     c.address as owner_address,
-                    c.dni as owner_dni
+                    c.identification as owner_dni
                 FROM pets p
                 JOIN clients c ON p.client_id = c.id
                 LEFT JOIN species s ON p.species_id = s.id

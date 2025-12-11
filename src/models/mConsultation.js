@@ -24,7 +24,7 @@ export const mConsultation = {
             }
 
             if (search) {
-                whereClause += " AND (p.name LIKE ? OR cl.name LIKE ? OR cl.dni LIKE ?)";
+                whereClause += " AND (p.name LIKE ? OR cl.name LIKE ? OR cl.identification LIKE ?)";
                 const searchPattern = `%${search}%`;
                 args.push(searchPattern, searchPattern, searchPattern);
             }
@@ -36,7 +36,7 @@ export const mConsultation = {
                     p.name as pet_name,
                     s.name as pet_species,
                     cl.name as client_name,
-                    cl.dni as client_dni,
+                    cl.identification as client_dni,
                     u.name as vet_name,
                     COUNT(*) OVER() as total_count
                 FROM consultations c

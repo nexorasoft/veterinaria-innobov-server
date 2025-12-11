@@ -303,5 +303,44 @@ export const mPayable = {
             logger.error('Error fetching history', error);
             return { success: false, code: 500, message: 'Error obteniendo historial', data: null };
         }
+    },
+
+    async getUpcomingPayables(days) {
+        try {
+            const query = `
+                SELECT *
+                FROM accounts_payable
+                WHERE
+                    balance > 0
+                    AND due_date BETWEEN date('now') 
+                    AND date('now', '+' || ? || ' days');
+            `;
+
+            const result = await turso.execute({ sql: query, args: [days] });
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: "No se encontraron cuentas por pagar próximas a vencer.",
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: "Cuentas por pagar próximas a vencer obtenidas correctamente.",
+                data: result.rows
+            }
+        } catch (error) {
+            logger.error("mPayable.getUpcomingPayables:", error);
+            return {
+                success: false,
+                code: 500,
+                message: "Error al obtener las cuentas por pagar próximas a vencer.",
+                data: null
+            };
+        }
     }
 };

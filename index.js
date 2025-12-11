@@ -6,11 +6,15 @@ import { logger } from './src/utils/logger.js';
 import { requestLogger } from './src/middlewares/requestLogger.js';
 import { corsMiddleware } from './src/middlewares/cors.js';
 
+import './src/jobs/vaccineCheck.js';
+import './src/jobs/productCheck.js';
+import './src/jobs/accountsCheck.js';
+
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser(COOKIE_SECRET)); // Cookie parser con secret para cookies firmadas
+app.use(cookieParser(COOKIE_SECRET));
 app.use(corsMiddleware);
 
 app.use(requestLogger);

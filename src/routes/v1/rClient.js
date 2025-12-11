@@ -68,4 +68,11 @@ router.post('/register-full',
     auditLog('CREATE', 'CLIENT_PET', 'Full client and pet registration'),
     cClient.registerFullClient
 );
+
+router.get('/identification-types',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    cClient.getIdentificationTypes
+);
+
 export default router;

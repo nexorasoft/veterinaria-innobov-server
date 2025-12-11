@@ -91,7 +91,7 @@ export const sClient = {
 
     async createClient(clientData) {
         try {
-            const requiredFields = ['dni', 'name', 'phone'];
+            const requiredFields = ['identification_type_id', 'identification', 'name', 'phone'];
             const missingFields = requiredFields.filter(field => !clientData[field]);
 
             if (missingFields.length > 0) {
@@ -105,7 +105,8 @@ export const sClient = {
 
             const cleanData = {
                 id: uuidv4(),
-                dni: clientData.dni.trim(),
+                identification_type_id: clientData.identification_type_id.trim(),
+                identification: clientData.identification.trim(),
                 name: clientData.name.trim().toUpperCase(),
                 phone: clientData.phone ? clientData.phone.trim() : null,
                 email: clientData.email ? clientData.email.trim().toLowerCase() : null,
@@ -149,7 +150,6 @@ export const sClient = {
 
             const cleanData = {};
             if (updateData.name) cleanData.name = updateData.name.trim().toUpperCase();
-            if (updateData.dni) cleanData.dni = updateData.dni.trim();
             if (updateData.phone) cleanData.phone = updateData.phone.trim();
             if (updateData.email) cleanData.email = updateData.email.trim().toLowerCase();
             if (updateData.address) cleanData.address = updateData.address.trim();
@@ -283,7 +283,7 @@ export const sClient = {
         try {
             const { client, pet } = data;
 
-            if (!client || !client.dni || !client.name) {
+            if (!client || !client.identification_type_id || !client.identification || !client.name) {
                 return {
                     success: false,
                     code: 400,
@@ -309,7 +309,7 @@ export const sClient = {
                         'veterinaria/animales',
                         {
                             maxWidth: 800,
-                            public_id: `${pet.name}_${client.dni}`
+                            public_id: `${pet.name}_${client.identification}`
                         }
                     );
                 } catch (uploadError) {
@@ -325,7 +325,8 @@ export const sClient = {
 
             const cleanClient = {
                 id: uuidv4(),
-                dni: client.dni.trim(),
+                identification_type_id: client.identification_type_id.trim(),
+                identification: client.identification.trim(),
                 name: client.name.trim().toUpperCase(),
                 phone: client.phone ? client.phone.trim() : null,
                 email: client.email ? client.email.trim().toLowerCase() : null,
@@ -368,6 +369,21 @@ export const sClient = {
                 success: false,
                 code: 500,
                 message: 'Error en registro express',
+                data: null
+            };
+        }
+    },
+
+    async getIdentificationTypes() {
+        try {
+            const result = await mClient.getIdentificationTypes();
+            return result;
+        } catch (error) {
+            logger.error('Error in service layer while retrieving identification types:', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
                 data: null
             };
         }

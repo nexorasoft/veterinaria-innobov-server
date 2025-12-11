@@ -200,5 +200,22 @@ export const cProduct = {
                 data: null
             });
         }
+    },
+
+    async getExpiringProducts(req, res) {
+        try {
+            const days = req.query.days ? parseInt(req.query.days, 10) : 30;
+
+            const result = await sProduct.getExpiringProducts(days);
+            return res.status(result.code).json(result);
+        } catch (error) {
+            logger.error('Error in getExpiringProducts controller', error);
+            return res.status(500).json({
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            });
+        }
     }
 };

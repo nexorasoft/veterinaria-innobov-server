@@ -76,4 +76,10 @@ router.get('/get/medicines',
     cProduct.getMedicineProducts
 );
 
+router.get('/get/expiring/:days',
+    authenticateUser,
+    roleMiddleware(['admin', 'cashier']),
+    cProduct.getExpiringProducts
+);
+
 export default router;

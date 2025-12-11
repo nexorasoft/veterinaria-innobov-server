@@ -283,10 +283,10 @@ export const sProduct = {
                 message: 'Internal server error while activating product',
                 data: null
             };
-        }   
+        }
     },
 
-    async getMedicineProducts(page=1, limit=10) {
+    async getMedicineProducts(page = 1, limit = 10) {
         try {
             const pageNum = Math.max(1, parseInt(page));
             const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
@@ -301,6 +301,30 @@ export const sProduct = {
                 message: 'Internal server error while retrieving medicine products',
                 data: null
             };
-        }       
+        }
+    },
+
+    async getExpiringProducts(days) {
+        try {
+            if (!days || isNaN(days) || days <= 0) {
+                return {
+                    success: false,
+                    code: 400,
+                    message: "El parámetro days debe ser un número positivo.",
+                    data: null
+                };
+            }
+
+            const result = await mProduct.getExpiringProducts(days);
+            return result;
+        } catch (error) {
+            logger.error('Error in getExpiringProducts service', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error while retrieving expiring products',
+                data: null
+            };
+        }
     }
 };

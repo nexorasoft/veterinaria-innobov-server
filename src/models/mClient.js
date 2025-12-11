@@ -17,7 +17,7 @@ export const mClient = {
             const offset = (pageNum - 1) * limitNum;
 
             let query = `
-                SELECT id, dni, name, phone, email, active, COUNT(*) OVER() as total_count
+                SELECT id, identification, name, phone, email, active, COUNT(*) OVER() as total_count
                 FROM clients
                 WHERE 1=1
             `;
@@ -101,9 +101,9 @@ export const mClient = {
             const offset = (pageNum - 1) * limitNum;
 
             const query = `
-                SELECT id, dni, name, phone, email, active, COUNT(*) OVER() as total_count
+                SELECT id, identification, name, phone, email, active, COUNT(*) OVER() as total_count
                 FROM clients
-                WHERE name LIKE ? OR dni LIKE ?
+                WHERE name LIKE ? OR identification LIKE ?
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             `;
@@ -159,8 +159,8 @@ export const mClient = {
         try {
             const clientQuery = `
                 SELECT
-                    id, dni, name, phone, email, address,
-                    emergency_contact, emergency_phone, 
+                    id, identification_type_id, identification, name, phone, 
+                    email, address,emergency_contact, emergency_phone, 
                     notes, active, created_at, updated_at 
                 FROM clients
                 WHERE id = ?
@@ -240,17 +240,18 @@ export const mClient = {
         try {
             const query = `
                 INSERT INTO clients(
-                    id, dni, name, phone, email, 
+                    id, identification_type_id, identification, name, phone, email, 
                     address, notes, active, 
                     emergency_contact, emergency_phone
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             const result = await turso.execute({
                 sql: query,
                 args: [
                     clientData.id,
-                    clientData.dni,
+                    clientData.identification_type_id,
+                    clientData.identification,
                     clientData.name,
                     clientData.phone,
                     clientData.email,
@@ -280,17 +281,18 @@ export const mClient = {
                 data: { id: clientData.id }
             };
         } catch (error) {
+            console.log('Error creating client:', error);
             if (error.message && error.message.includes('UNIQUE constraint failed')) {
                 let message = 'The record already exists.';
-                if (error.message.includes('clients.dni')) {
-                    message = `The DNI/ID ${clientData.dni} is already registered.`;
+                if (error.message.includes('clients.identification')) {
+                    message = `The IDENTIFICATION ${clientData.identification} is already registered.`;
                 } else if (error.message.includes('clients.email')) {
                     message = `The email ${clientData.email} is already registered.`;
                 } else if (error.message.includes('clients.phone')) {
                     message = `The phone number ${clientData.phone} is already registered.`;
                 }
 
-                logger.warn('Duplicate entry attempt', { dni: clientData.dni });
+                logger.warn('Duplicate entry attempt', { identification: clientData.identification });
 
                 return {
                     success: false,
@@ -361,7 +363,7 @@ export const mClient = {
             };
         } catch (error) {
             if (error.message && error.message.includes('UNIQUE constraint failed')) {
-                let msg = 'Duplicate data (DNI or Email already exist for another customer)';
+                let msg = 'Duplicate data (identification or Email already exist for another customer)';
                 return {
                     success: false,
                     code: 409,
@@ -575,18 +577,19 @@ export const mClient = {
         try {
             const insertClientQuery = `
                 INSERT INTO clients (
-                    id, dni, name, phone, email, address, notes, active,
+                    id, identification_type_id, identification, name, phone, email, address, notes, active,
                     emergency_contact, emergency_phone
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
             `;
 
             const insertQueryResult = await tx.execute({
                 sql: insertClientQuery,
                 args: [
-                    clientData.id, clientData.dni, clientData.name, clientData.phone,
-                    clientData.email, clientData.address, clientData.notes, clientData.active,
-                    clientData.emergency_contact || null, clientData.emergency_phone || null
+                    clientData.id, clientData.identification_type_id, clientData.identification,
+                    clientData.name, clientData.phone, clientData.email, clientData.address,
+                    clientData.notes, clientData.active, clientData.emergency_contact || null,
+                    clientData.emergency_phone || null
                 ]
             });
 
@@ -677,7 +680,7 @@ export const mClient = {
             await tx.rollback();
             if (error.message && error.message.includes('UNIQUE constraint failed')) {
                 let message = 'Duplication error.';
-                if (error.message.includes('clients.dni')) message = `The customer's ID already exists.`;
+                if (error.message.includes('clients.identification')) message = `The customer's IDENTIFICATION already exists.`;
                 else if (error.message.includes('clients.email')) message = 'The customer\'s email already exists.';
                 else if (error.message.includes('clients.phone')) message = 'The customer\'s phone number already exists.';
 
@@ -703,9 +706,9 @@ export const mClient = {
     async getClientBySale(identification) {
         try {
             const query = `
-                SELECT id, dni, name, phone, email
+                SELECT id, identification, name, phone, email
                 FROM clients
-                WHERE dni = ?
+                WHERE identification = ?
                 LIMIT 1;
             `;
 
@@ -723,5 +726,58 @@ export const mClient = {
             logger.error('Error retrieving client by sale identification:', error);
             return null;
         }
-    }
+    },
+
+    async getIdentificationTypes() {
+        try {
+            const query = `
+                SELECT id, code, description
+                FROM identification_types
+                ORDER BY code ASC;
+            `;
+
+            const result = await turso.execute(query);
+
+            if (result.rows.length === 0) {
+                return {
+                    success: false,
+                    code: 404,
+                    message: 'No identification types found',
+                    data: null
+                };
+            }
+
+            return {
+                success: true,
+                code: 200,
+                message: 'Identification types retrieved successfully',
+                data: result.rows
+            };
+        } catch (error) {
+            logger.error('Error retrieving identification types:', error);
+            return {
+                success: false,
+                code: 500,
+                message: 'Internal server error',
+                data: null
+            };
+        }
+    },
+
+    async getIdentificationTypeIdByCode(code) {
+        try {
+            const result = await turso.execute({
+                sql: "SELECT id FROM identification_types WHERE code = ?",
+                args: [code]
+            });
+            
+            if (result.rows.length > 0) {
+                return result.rows[0].id;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching identification type', error);
+            return null;
+        }
+    },
 };

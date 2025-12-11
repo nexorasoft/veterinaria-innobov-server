@@ -48,21 +48,30 @@ DROP TABLE IF EXISTS two_factor_codes;
 -- ============================================
 CREATE TABLE system_settings (
     id TEXT PRIMARY KEY DEFAULT 'main',
-    clinic_name TEXT NOT NULL DEFAULT 'Clínica Veterinaria',
     ruc TEXT,
+    business_name TEXT NOT NULL,
+    trade_name TEXT NOT NULL DEFAULT 'Clínica Veterinaria',
     address TEXT,
+    headquarters_address TEXT,
+    establishment_address TEXT,
     phone TEXT,
     email TEXT,
-    logo TEXT,
-    sri_environment TEXT CHECK(sri_environment IN ('PRUEBAS', 'PRODUCCION')) DEFAULT 'PRUEBAS',
-    sri_establishment TEXT DEFAULT '001',
-    sri_emission_point TEXT DEFAULT '001',
-    sri_next_sequential INTEGER DEFAULT 1,
+    establishment_code TEXT NOT NULL DEFAULT '001',
+    emission_point TEXT NOT NULL DEFAULT '001',
+    environment_type INTEGER NOT NULL DEFAULT 1,
+    emission_type INTEGER NOT NULL DEFAULT 1,
+    accounting_obligation INTEGER DEFAULT 0,
+    special_taxpayer TEXT,
+    notification_email TEXT,
+    certificate TEXT,
+    certificate_password TEXT,
+    logo_url TEXT,
+    logo_public_id TEXT,
     tax_percentage REAL DEFAULT 15.0,
     currency TEXT DEFAULT 'USD',
-    timezone TEXT DEFAULT 'America/Guayaquil',
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
-    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    UNIQUE(ruc, establishment_code) 
 );
 
 INSERT INTO system_settings (id) VALUES ('main');
@@ -196,9 +205,16 @@ CREATE TABLE species (
 -- ============================================
 -- CLIENTES Y MASCOTAS
 -- ============================================
+CREATE TABLE identification_types(
+  id TEXT PRIMARY KEY, 
+  code TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL
+);
+
 CREATE TABLE clients (
     id TEXT PRIMARY KEY,
-    dni TEXT UNIQUE,
+    identification_type TEXT NOT NULL,
+    identification TEXT UNIQUE,
     name TEXT NOT NULL,
     phone TEXT UNIQUE,
     email TEXT,
@@ -208,7 +224,8 @@ CREATE TABLE clients (
     notes TEXT,
     active BOOLEAN DEFAULT 1,
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
-    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    FOREIGN KEY (identification_type) REFERENCES identification_types(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE pets (
@@ -743,3 +760,69 @@ INSERT INTO bank_accounts (id, bank_name, holder_name) VALUES
 
 ALTER TABLE sales ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id);
 ALTER TABLE purchases ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id);
+
+
+CREATE TABLE invoices (
+    id TEXT PRIMARY KEY,
+    issuing_company_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    issue_date DATETIME NOT NULL,
+    access_key TEXT NOT NULL UNIQUE,
+    sequential TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_without_taxes REAL NOT NULL,
+    total_vat REAL NOT NULL,
+    total_with_taxes REAL NOT NULL,
+    xml TEXT,
+    signed_xml TEXT,
+    authorization_number TEXT,
+    authorization_date DATETIME,
+    sri_status TEXT,
+    sri_sent_at DATETIME,
+    sri_response_at DATETIME,
+    original_data TEXT,
+    FOREIGN KEY (issuing_company_id) REFERENCES system_settings(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+);
+
+CREATE TABLE invoice_details (
+    id TEXT PRIMARY KEY,
+    invoice_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    subtotal REAL NOT NULL,
+    vat_value REAL NOT NULL,
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE invoice_pdfs (
+    id TEXT PRIMARY KEY,
+    invoice_id INTEGER NOT NULL,
+    access_key TEXT NOT NULL UNIQUE,
+    pdf_path TEXT NOT NULL,
+    pdf_buffer BLOB,
+    generated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+    status TEXT CHECK(status IN ('GENERATED', 'ERROR')) DEFAULT 'GENERATED',
+    file_size INTEGER NOT NULL,
+    authorization_number TEXT NOT NULL,
+    authorization_date DATETIME NOT NULL,
+    email_status TEXT CHECK(email_status IN ('PENDING', 'SENT', 'ERROR', 'NOT_SENT')) DEFAULT 'NOT_SENT',
+    email_recipient TEXT,
+    email_sent_at DATETIME,
+    email_attempts INTEGER NOT NULL DEFAULT 0,
+    email_last_error TEXT,
+    email_sent_by TEXT,
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE invoice_types (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,               
+    name TEXT NOT NULL,                 
+    description TEXT,
+    electronic INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
+    updated_at DATETIME DEFAULT (datetime('now', '-5 hours'))
+);
