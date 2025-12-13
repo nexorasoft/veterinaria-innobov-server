@@ -17,6 +17,7 @@ import vaccinationRoutes from './v1/rVaccionation.js';
 import userRoutes from './v1/rUser.js';
 import dashboardRoutes from './v1/rDashboard.js';
 import notificationRoutes from './v1/rNotification.js';
+import systemRoutes from './v1/rSystem.js';
 
 const router = Router();
 
@@ -47,5 +48,6 @@ router.use('/vaccination', vaccinationRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/user', userRoutes);
 router.use('/notification', notificationRoutes);
+router.use('/system', systemRoutes);
 
 export default router;

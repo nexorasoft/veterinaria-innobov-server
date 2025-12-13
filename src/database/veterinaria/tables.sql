@@ -50,7 +50,7 @@ CREATE TABLE system_settings (
     id TEXT PRIMARY KEY DEFAULT 'main',
     ruc TEXT,
     business_name TEXT NOT NULL,
-    trade_name TEXT NOT NULL DEFAULT 'Clínica Veterinaria',
+    trade_name TEXT NOT NULL,
     address TEXT,
     headquarters_address TEXT,
     establishment_address TEXT,
@@ -67,6 +67,7 @@ CREATE TABLE system_settings (
     certificate_password TEXT,
     logo_url TEXT,
     logo_public_id TEXT,
+    code_tax TEXT DEFAULT '4',
     tax_percentage REAL DEFAULT 15.0,
     currency TEXT DEFAULT 'USD',
     created_at DATETIME DEFAULT (datetime('now', '-5 hours')),
@@ -777,8 +778,10 @@ CREATE TABLE invoices (
     signed_xml TEXT,
     authorization_number TEXT,
     authorization_date DATETIME,
+    xml_authorized TEXT,
     sri_status TEXT,
     sri_sent_at DATETIME,
+    sri_messages TEXT,
     sri_response_at DATETIME,
     original_data TEXT,
     FOREIGN KEY (issuing_company_id) REFERENCES system_settings(id),
@@ -794,7 +797,8 @@ CREATE TABLE invoice_details (
     subtotal REAL NOT NULL,
     vat_value REAL NOT NULL,
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE RESTRICT,
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    FOREIGN KEY (product_id) REFERENCES services(id)
 );
 
 CREATE TABLE invoice_pdfs (

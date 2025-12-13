@@ -29,7 +29,7 @@ export const mSend = {
             `;
 
             const getInfoClinic = `
-                SELECT clinic_name as name_clinic
+                SELECT trade_name as name_clinic
                 FROM system_settings
                 LIMIT 1
             `;

@@ -838,5 +838,5 @@ export const mProduct = {
                 data: null
             };
         }
-    }
+    },
 };

@@ -2,7 +2,7 @@ import { BREVO_TOKEN } from '../config/env.js';
 import { logger } from './logger.js';
 
 export const BrevoConfig = {
-    async sendEmail(subject, to, htmlContent, sender, retries = 3, delay = 1000) {
+    async sendEmail(subject, to, htmlContent, sender, attachments = [], retries = 3, delay = 1000) {
         if (!to?.email || !htmlContent) {
             logger.error('Destinatario o contenido del email no proporcionado.');
             return null;
@@ -18,6 +18,10 @@ export const BrevoConfig = {
             htmlContent: htmlContent,
             replyTo: { email: sender.email, name: sender.name }
         };
+
+        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+            payload.attachment = attachments;
+        }
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -64,7 +68,8 @@ export const BrevoConfig = {
             if (retries > 0 && isRetryable) {
                 logger.info(`Error temporal detectado. Reintentando en ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
-                return this.sendEmail(subject, to, htmlContent, sender, retries - 1, delay * 2);
+
+                return this.sendEmail(subject, to, htmlContent, sender, attachments, retries - 1, delay * 2);
             }
 
             return { success: false, error: error.message };

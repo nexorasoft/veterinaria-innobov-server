@@ -167,7 +167,7 @@ export const mSales = {
                         item.service_id || null,
                         item.quantity,
                         item.price,
-                        item.total_line
+                        item.subtotal
                     ]
                 });
 

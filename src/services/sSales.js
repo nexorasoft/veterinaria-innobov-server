@@ -4,6 +4,8 @@ import { mClient } from "../models/mClient.js";
 import { hSales } from "../helpers/hSales.js";
 import { logger } from "../utils/logger.js";
 import { v4 as uuidv4 } from 'uuid';
+import { mInvoice } from "../models/mInvoice.js";
+import { sInvoice } from "./sInvoice.js";
 
 export const sSales = {
     async searchCatalog(queryParams) {
@@ -33,6 +35,10 @@ export const sSales = {
     },
 
     async registerSale(userId, saleData) {
+        const round = (num, decimals = 2) => {
+            return Number(Math.round(num + 'e' + decimals) + 'e-' + decimals);
+        };
+
         try {
             const { client_id, client_data, items, payment_method, notes, discount } = saleData;
 
@@ -40,7 +46,7 @@ export const sSales = {
                 return {
                     success: false,
                     code: 400,
-                    message: 'Client information and sale items are required.',
+                    message: 'La información del cliente y los items son obligatorios.',
                     data: null
                 }
             }
@@ -48,15 +54,14 @@ export const sSales = {
             if (!client_id && client_data && client_data.identification) {
                 const sriCode = hSales.inferSriCode(client_data.identification);
                 const identificationTypeId = await mClient.getIdentificationTypeIdByCode(sriCode);
-                
-                if (!identificationTypeId) {
-                    throw new Error(`Error de configuración: No existe el tipo de identificación SRI '${sriCode}' en el sistema.`);
-                }
 
+                if (!identificationTypeId) {
+                    throw new Error(`Error: No existe el tipo de identificación SRI '${sriCode}'.`);
+                }
                 client_data.identification_type_id = identificationTypeId;
             }
 
-            const taxPercentage = await mSystem.getTaxPercentage();
+            const { tax_percentage: taxPercentage } = await mSystem.getTaxPercentage();
             const taxRate = taxPercentage / 100;
             const divisor = 1 + taxRate;
 
@@ -65,38 +70,50 @@ export const sSales = {
 
             const processedItems = items.map(item => {
                 const qty = Number(item.quantity);
-                const price = Number(item.price);
-                const itemTotalRaw = qty * price;
+                const inputPrice = Number(item.price);
+                const isTaxInclusive = Number(item.taxable) === 1;
 
-                let itemBase = 0;
-                let itemTax = 0;
+                let lineSubtotal = 0;
+                let lineTax = 0;
+                let lineTotal = 0;
 
-                if (!item.taxable) {
-                    itemBase = itemTotalRaw;
-                    itemTax = itemBase * taxRate;
+                if (isTaxInclusive) {
+                    lineTotal = round(inputPrice * qty, 2);
+                    lineSubtotal = round(lineTotal / divisor, 2);
+                    lineTax = round(lineTotal - lineSubtotal, 2);
+
+                } else {
+                    lineSubtotal = round(inputPrice * qty, 2);
+                    lineTax = round(lineSubtotal * taxRate, 2);
+                    lineTotal = round(lineSubtotal + lineTax, 2);
                 }
-                else {
-                    itemBase = itemTotalRaw / divisor;
-                    itemTax = itemTotalRaw - itemBase;
-                }
 
-                globalSubtotal += itemBase;
-                globalTax += itemTax;
+                const unitPriceForXml = round(inputPrice / divisor, 2);
+
+                globalSubtotal += lineSubtotal;
+                globalTax += lineTax;
 
                 return {
                     ...item,
                     sale_detail_id: uuidv4(),
                     quantity: qty,
-                    price: price,
-                    subtotal: parseFloat(itemBase.toFixed(4)),
-                    tax_amount: parseFloat(itemTax.toFixed(4)),
-                    total_line: parseFloat((itemBase + itemTax).toFixed(2)),
+
+                    price: unitPriceForXml,
+
+                    subtotal: lineSubtotal,
+                    tax_amount: lineTax,
+                    total_line: lineTotal,
+
                     item_type: item.service_id ? 'SERVICIO' : 'PRODUCTO'
                 };
             });
 
+            globalSubtotal = round(globalSubtotal, 2);
+            globalTax = round(globalTax, 2);
+
             const finalDiscount = Number(discount || 0);
-            const total = globalSubtotal + globalTax - finalDiscount;
+
+            const total = round(globalSubtotal + globalTax - finalDiscount, 2);
 
             const isConsumidorFinal =
                 (saleData.client_id === 'consumer_final_default') ||
@@ -106,7 +123,7 @@ export const sSales = {
                 return {
                     success: false,
                     code: 400,
-                    message: `El monto ($${total.toFixed(2)}) excede el límite para Consumidor Final ($50.00). Debe registrar los datos del cliente.`,
+                    message: `Monto ($${total.toFixed(2)}) excede límite Consumidor Final ($50). Registre cliente.`,
                     data: null
                 };
             }
@@ -115,27 +132,71 @@ export const sSales = {
                 id: uuidv4(),
                 cash_movement_id: uuidv4(),
                 user_id: userId,
-
                 client_id: client_id || null,
-
                 client_data: client_data || null,
-
                 payment_method: payment_method,
                 notes: notes,
-                subtotal: parseFloat(globalSubtotal.toFixed(2)),
-                tax: parseFloat(globalTax.toFixed(2)),
-                discount: parseFloat(finalDiscount.toFixed(2)),
-                total: parseFloat(total.toFixed(2)),
+
+                subtotal: globalSubtotal,
+                tax: globalTax,
+                discount: round(finalDiscount, 2),
+                total: total,
+
                 items: processedItems
             };
 
             const result = await mSales.registerSale(salePayload);
 
             if (result.success) {
+                const saleId = result.data.sale_id;
+
+                setImmediate(async () => {
+                    try {
+                        const [invoiceData, taxInfo] = await Promise.all([
+                            mInvoice.getFullInvoiceData(saleId),
+                            mSystem.getTaxPercentage()
+                        ]);
+
+                        if (!invoiceData) {
+                            logger.error('Invoice generation skipped: invoice data not found', { saleId });
+                            return;
+                        }
+
+                        delete invoiceData.details_json;
+                        invoiceData.id = uuidv4();
+
+                        invoiceData.taxes = {
+                            code: "2",
+                            tax_code: taxInfo.code_tax,
+                            fee: taxInfo.tax_percentage,
+                            tax_base: round(invoiceData.total_without_taxes, 2),
+                            value: round(invoiceData.total_vat, 2)
+                        };
+
+                        invoiceData.details = invoiceData.details.map(d => ({
+                            ...d,
+                            taxes: {
+                                tax: {
+                                    code: "2",
+                                    tax_code: taxInfo.code_tax,
+                                    fee: taxInfo.tax_percentage,
+                                    tax_base: round(d.subtotal, 2),
+                                    value: round(d.tax_amount, 2)
+                                }
+                            }
+                        }));
+
+                        await sInvoice.createInvoice(invoiceData);
+                    } catch (err) {
+                        logger.error('Background invoice generation error', err);
+                    }
+                });
+
                 hSales.checkStockAndNotify(processedItems).catch(err =>
                     logger.error('Background Notification Error', err)
                 );
             }
+
 
             return result;
         } catch (error) {
@@ -143,7 +204,7 @@ export const sSales = {
             return {
                 success: false,
                 code: 500,
-                message: 'Ocurrió un error registrando la venta: ' + error.message,
+                message: 'Error al registrar venta: ' + error.message,
                 data: null
             };
         }
